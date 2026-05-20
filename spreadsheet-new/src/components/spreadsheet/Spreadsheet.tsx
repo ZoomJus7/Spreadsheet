@@ -11,6 +11,8 @@ import {
   setCellsFromImport,
   updateCellStyles,
   updateRangeStyles,
+  undo,
+  redo,
 } from '@/store/slices/spreadsheetSlice';
 import { clearCurrentDocument } from '@/store/slices/documentsSlice';
 import { updateDocument } from '@/services/mockApi';
@@ -52,6 +54,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
   const { editingCell, startEdit, stopEdit, inputRef } = useEditing();
   const [formulaValue, setFormulaValue] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isTableFocused, setIsTableFocused] = useState(true);
 
   const currentStyles = useMemo(() => {
     if (!selectedCell) return {};
@@ -119,6 +122,19 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     window.addEventListener('spreadsheet:selectAll', handleSelectAll as EventListener);
     return () => window.removeEventListener('spreadsheet:selectAll', handleSelectAll as EventListener);
   }, [dispatch, rows, cols]);
+
+  useEffect(() => {
+    const handleFocus = () => setIsTableFocused(true);
+    const handleBlur = () => setIsTableFocused(false);
+    
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
 
   const getCellRaw = useCallback((pos: { row: number; col: number }) => {
     const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
@@ -303,6 +319,14 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     handleStyleChange({ underline: !currentStyles.underline });
   }, [handleStyleChange, currentStyles.underline]);
 
+  const handleUndo = useCallback(() => {
+    dispatch(undo());
+  }, [dispatch]);
+
+  const handleRedo = useCallback(() => {
+    dispatch(redo());
+  }, [dispatch]);
+
   useKeyboardShortcuts({
     onBold: handleBold,
     onItalic: handleItalic,
@@ -312,7 +336,10 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     onMoveDown: handleMoveDown,
     onMoveUp: handleMoveUp,
     onExitEdit: () => stopEdit(),
+    onUndo: handleUndo,
+    onRedo: handleRedo,
     isEditing: !!editingCell,
+    isActive: isTableFocused,
   });
 
   if (!isInitialized) {

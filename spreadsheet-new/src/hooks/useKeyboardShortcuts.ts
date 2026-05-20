@@ -10,6 +10,8 @@ interface UseKeyboardShortcutsProps {
   onMoveDown?: () => void;
   onMoveUp?: () => void;
   onExitEdit?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
   isEditing?: boolean;
 }
 
@@ -22,6 +24,8 @@ export const useKeyboardShortcuts = ({
   onMoveDown,
   onMoveUp,
   onExitEdit,
+  onUndo,
+  onRedo,
   isEditing = false,
 }: UseKeyboardShortcutsProps) => {
   const { copyToClipboard, cutToClipboard, pasteFromClipboard, selectAll, clearCell } = useClipboard();
@@ -29,85 +33,96 @@ export const useKeyboardShortcuts = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isCtrl = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      
+      // Предотвращаем все комбинации
+      if (isCtrl || ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab', 'delete', 'backspace'].includes(key)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      if (isCtrl && key === 'z' && !e.shiftKey) {
+        if (onUndo) onUndo();
+        return;
+      }
+      
+      if (isCtrl && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        if (onRedo) onRedo();
+        return;
+      }
+      
+      if (isCtrl && key === 'a') {
+        selectAll();
+        return;
+      }
+      
+      if (isCtrl && key === 'c') {
+        copyToClipboard();
+        return;
+      }
+      
+      if (isCtrl && key === 'x') {
+        cutToClipboard();
+        return;
+      }
+      
+      if (isCtrl && key === 'v') {
+        pasteFromClipboard();
+        return;
+      }
+      
+      if (isCtrl && key === 'b') {
+        if (onBold) onBold();
+        return;
+      }
+      
+      if (isCtrl && key === 'i') {
+        if (onItalic) onItalic();
+        return;
+      }
+      
+      if (isCtrl && key === 'u') {
+        if (onUnderline) onUnderline();
+        return;
+      }
       
       if (isEditing) {
-        if (e.key === 'Enter') {
-          e.preventDefault();
+        if (key === 'enter') {
           if (onMoveDown) onMoveDown();
           if (onExitEdit) onExitEdit();
-        } else if (e.key === 'Escape') {
-          e.preventDefault();
+          return;
+        }
+        if (key === 'escape') {
           if (onExitEdit) onExitEdit();
-        } else if (e.key === 'Tab') {
-          e.preventDefault();
+          return;
+        }
+        if (key === 'tab') {
           if (!e.shiftKey && onMoveRight) onMoveRight();
           else if (e.shiftKey && onMoveLeft) onMoveLeft();
+          return;
         }
         return;
       }
       
-      switch (e.key) {
-        case 'ArrowRight':
+      switch (key) {
+        case 'arrowright':
           if (onMoveRight) onMoveRight();
           break;
-        case 'ArrowLeft':
+        case 'arrowleft':
           if (onMoveLeft) onMoveLeft();
           break;
-        case 'ArrowDown':
+        case 'arrowdown':
           if (onMoveDown) onMoveDown();
           break;
-        case 'ArrowUp':
+        case 'arrowup':
           if (onMoveUp) onMoveUp();
           break;
-        case 'Enter':
+        case 'enter':
           if (onMoveDown) onMoveDown();
           break;
-        case 'Delete':
-        case 'Backspace':
-          e.preventDefault();
+        case 'delete':
+        case 'backspace':
           clearCell();
-          break;
-        case 'a':
-          if (isCtrl) {
-            e.preventDefault();
-            selectAll();
-          }
-          break;
-        case 'c':
-          if (isCtrl) {
-            e.preventDefault();
-            copyToClipboard();
-          }
-          break;
-        case 'x':
-          if (isCtrl) {
-            e.preventDefault();
-            cutToClipboard();
-          }
-          break;
-        case 'v':
-          if (isCtrl) {
-            e.preventDefault();
-            pasteFromClipboard();
-          }
-          break;
-        case 'b':
-          if (isCtrl && onBold) {
-            e.preventDefault();
-            onBold();
-          }
-          break;
-        case 'i':
-          if (isCtrl && onItalic) {
-            e.preventDefault();
-            onItalic();
-          }
-          break;
-        case 'u':
-          if (isCtrl && onUnderline) {
-            e.preventDefault();
-            onUnderline();
-          }
           break;
       }
     };
@@ -124,6 +139,8 @@ export const useKeyboardShortcuts = ({
     onMoveDown,
     onMoveUp,
     onExitEdit,
+    onUndo,
+    onRedo,
     copyToClipboard,
     cutToClipboard,
     pasteFromClipboard,

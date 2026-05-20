@@ -1,50 +1,73 @@
 import type { User } from '@/store/slices/authSlice';
 
-// Хранилище пользователей (имитация базы данных)
 interface StoredUser {
   id: string;
   name: string;
   email: string;
-  password: string; // в реальном проекте должен быть хеш
+  password: string;
+  createdAt: string;
 }
 
-let users: StoredUser[] = [];
+interface Document {
+  id: string;
+  userId: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  rows: number;
+  cols: number;
+  cells: Record<string, any>;
+}
 
-// Загрузка пользователей из localStorage
-const loadUsers = (): StoredUser[] => {
-  const stored = localStorage.getItem('mock_users');
+const USERS_KEY = 'mock_users';
+const DOCUMENTS_KEY = 'spreadsheet_documents';
+
+const getUsers = (): StoredUser[] => {
+  const stored = localStorage.getItem(USERS_KEY);
   if (stored) {
-    users = JSON.parse(stored);
-  } else {
-    // Добавляем тестового пользователя
-    users = [
-      {
-        id: '1',
-        name: 'Тестовый пользователь',
-        email: 'test@example.com',
-        password: '12345678',
-      },
-    ];
-    saveUsers();
+    return JSON.parse(stored);
   }
-  return users;
+  const defaultUsers: StoredUser[] = [
+    {
+      id: '1',
+      name: 'Тестовый пользователь',
+      email: 'test@example.com',
+      password: '12345678',
+      createdAt: new Date().toISOString(),
+    },
+  ];
+  saveUsers(defaultUsers);
+  return defaultUsers;
 };
 
-const saveUsers = () => {
-  localStorage.setItem('mock_users', JSON.stringify(users));
+const saveUsers = (users: StoredUser[]): void => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
 };
 
-// Генерация простого токена (имитация JWT)
+const loadDocuments = (): Document[] => {
+  const data = localStorage.getItem(DOCUMENTS_KEY);
+  if (!data) return [];
+  return JSON.parse(data);
+};
+
+const getCurrentUserId = (): string | null => {
+  const token = localStorage.getItem('spreadsheet_access_token');
+  if (!token) return null;
+  const parts = token.split('_');
+  if (parts.length >= 3 && parts[0] === 'mock' && parts[1] === 'jwt') {
+    return parts[2];
+  }
+  return null;
+};
+
 const generateToken = (userId: string): string => {
-  return `mock_jwt_${userId}_${Date.now()}_${Math.random().toString(36).substr(2)}`;
+  return `mock_jwt_${userId}_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 };
 
-// Регистрация
 export const mockRegister = async (name: string, email: string, password: string): Promise<{ user: User; accessToken: string; refreshToken: string }> => {
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  loadUsers();
-  
+  const users = getUsers();
   const existingUser = users.find(u => u.email === email);
   if (existingUser) {
     throw new Error('Пользователь с таким email уже существует');
@@ -55,10 +78,11 @@ export const mockRegister = async (name: string, email: string, password: string
     name,
     email,
     password,
+    createdAt: new Date().toISOString(),
   };
   
   users.push(newUser);
-  saveUsers();
+  saveUsers(users);
   
   const accessToken = generateToken(newUser.id);
   const refreshToken = generateToken(newUser.id);
@@ -70,12 +94,10 @@ export const mockRegister = async (name: string, email: string, password: string
   };
 };
 
-// Вход
 export const mockLogin = async (email: string, password: string): Promise<{ user: User; accessToken: string; refreshToken: string }> => {
   await new Promise(resolve => setTimeout(resolve, 500));
   
-  loadUsers();
-  
+  const users = getUsers();
   const user = users.find(u => u.email === email && u.password === password);
   if (!user) {
     throw new Error('Неверный email или пароль');
@@ -91,11 +113,9 @@ export const mockLogin = async (email: string, password: string): Promise<{ user
   };
 };
 
-// Обновление токена
 export const mockRefreshToken = async (refreshToken: string): Promise<{ accessToken: string }> => {
   await new Promise(resolve => setTimeout(resolve, 300));
   
-  // Простая валидация: проверяем, что токен начинается с mock_jwt_
   if (!refreshToken || !refreshToken.startsWith('mock_jwt_')) {
     throw new Error('Invalid refresh token');
   }
@@ -106,7 +126,6 @@ export const mockRefreshToken = async (refreshToken: string): Promise<{ accessTo
   return { accessToken: newAccessToken };
 };
 
-// Получение текущего пользователя по токену
 export const mockGetCurrentUser = async (accessToken: string): Promise<User> => {
   await new Promise(resolve => setTimeout(resolve, 200));
   
@@ -115,6 +134,7 @@ export const mockGetCurrentUser = async (accessToken: string): Promise<User> => 
   }
   
   const userId = accessToken.split('_')[2];
+  const users = getUsers();
   const user = users.find(u => u.id === userId);
   
   if (!user) {
@@ -122,4 +142,44 @@ export const mockGetCurrentUser = async (accessToken: string): Promise<User> => 
   }
   
   return { id: user.id, name: user.name, email: user.email };
+};
+
+export const getUserStats = async (userId: string): Promise<{ documentCount: number; registeredAt: string }> => {
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  const documents = loadDocuments();
+  const userDocs = documents.filter(doc => doc.userId === userId);
+  
+  const users = getUsers();
+  const user = users.find(u => u.id === userId);
+  
+  return {
+    documentCount: userDocs.length,
+    registeredAt: user?.createdAt || new Date().toISOString(),
+  };
+};
+
+export const updateUserName = async (userId: string, newName: string): Promise<{ name: string }> => {
+  await new Promise(resolve => setTimeout(resolve, 400));
+  
+  const users = getUsers();
+  const userIndex = users.findIndex(u => u.id === userId);
+  if (userIndex === -1) throw new Error('User not found');
+  
+  users[userIndex].name = newName;
+  saveUsers(users);
+  
+  return { name: newName };
+};
+
+export const changeUserPassword = async (userId: string, oldPassword: string, newPassword: string): Promise<void> => {
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  const users = getUsers();
+  const user = users.find(u => u.id === userId);
+  if (!user) throw new Error('User not found');
+  if (user.password !== oldPassword) throw new Error('Неверный старый пароль');
+  
+  user.password = newPassword;
+  saveUsers(users);
 };

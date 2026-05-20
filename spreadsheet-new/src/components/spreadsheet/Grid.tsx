@@ -118,7 +118,12 @@ export const Grid: React.FC<GridProps> = ({
   }, [columnWidths, rowHeights]);
 
   return (
-    <div className="spreadsheet-grid">
+    <div 
+      className="spreadsheet-grid" 
+      tabIndex={0}
+      onFocus={() => {}}
+      style={{ outline: 'none' }}
+    >
       <div className="top-left-corner" />
       <ColHeader
         cols={cols}
