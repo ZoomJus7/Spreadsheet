@@ -1,5 +1,5 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { CellData, CellPosition, SelectionRange } from '@/types/spreadsheet';
+import type { CellData, CellPosition, SelectionRange, CellStyles } from '@/types/spreadsheet';
 import { indexToCell, cellToIndex } from '@/utils/formulas/cellReference';
 import { detectType, parseValue } from '@/utils/spreadsheet/cellTypeDetector';
 import { evaluateFormula } from '@/utils/formulas/evaluator';
@@ -84,6 +84,7 @@ const spreadsheetSlice = createSlice({
       if (pos.row < 0 || pos.row >= state.rows || pos.col < 0 || pos.col >= state.cols) return;
       
       const ref = indexToCell(pos.row, pos.col);
+      const existingCell = state.cells.get(ref);
       const type = detectType(rawValue);
       let computed: string | number | boolean;
       
@@ -93,9 +94,58 @@ const spreadsheetSlice = createSlice({
         computed = parseValue(rawValue, type);
       }
       
-      const newCell: CellData = { raw: rawValue, computed, type };
+      const newCell: CellData = { 
+        raw: rawValue, 
+        computed, 
+        type,
+        styles: existingCell?.styles,
+      };
       const newCells = new Map(state.cells);
       newCells.set(ref, newCell);
+      state.cells = recomputeFormulas(newCells);
+      saveToHistory(state);
+    },
+
+    updateCellStyles: (state, action: PayloadAction<{ pos: CellPosition; styles: Partial<CellStyles> }>) => {
+      const { pos, styles } = action.payload;
+      if (pos.row < 0 || pos.row >= state.rows || pos.col < 0 || pos.col >= state.cols) return;
+      
+      const ref = indexToCell(pos.row, pos.col);
+      const existingCell = state.cells.get(ref);
+      const currentStyles = existingCell?.styles || {};
+      
+      const updatedCell: CellData = {
+        raw: existingCell?.raw || '',
+        computed: existingCell?.computed || '',
+        type: existingCell?.type || 'text',
+        styles: { ...currentStyles, ...styles },
+      };
+      
+      const newCells = new Map(state.cells);
+      newCells.set(ref, updatedCell);
+      state.cells = recomputeFormulas(newCells);
+      saveToHistory(state);
+    },
+
+    updateRangeStyles: (state, action: PayloadAction<{ range: SelectionRange; styles: Partial<CellStyles> }>) => {
+      const { range, styles } = action.payload;
+      const newCells = new Map(state.cells);
+      
+      for (let r = range.start.row; r <= range.end.row; r++) {
+        for (let c = range.start.col; c <= range.end.col; c++) {
+          const ref = indexToCell(r, c);
+          const existingCell = state.cells.get(ref);
+          const currentStyles = existingCell?.styles || {};
+          
+          const updatedCell: CellData = {
+            raw: existingCell?.raw || '',
+            computed: existingCell?.computed || '',
+            type: existingCell?.type || 'text',
+            styles: { ...currentStyles, ...styles },
+          };
+          newCells.set(ref, updatedCell);
+        }
+      }
       state.cells = recomputeFormulas(newCells);
       saveToHistory(state);
     },
@@ -220,6 +270,8 @@ const spreadsheetSlice = createSlice({
 export const {
   loadDocumentData,
   updateCell,
+  updateCellStyles,
+  updateRangeStyles,
   setCellsFromImport,
   selectCell,
   clearSelection,

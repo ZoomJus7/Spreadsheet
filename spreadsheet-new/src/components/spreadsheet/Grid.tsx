@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useLayoutEffect } from 'react';
 import { Cell } from './Cell';
 import { RowHeader } from './RowHeader';
 import { ColHeader } from './ColHeader';
-import type { CellPosition, SelectionRange } from '@/types/spreadsheet';
+import type { CellPosition, SelectionRange, CellStyles } from '@/types/spreadsheet';
 import { DEFAULT_COLUMN_WIDTH, DEFAULT_ROW_HEIGHT } from '@/constants/defaultConfig';
 
 interface GridProps {
@@ -15,6 +15,7 @@ interface GridProps {
   editingCell: CellPosition | null;
   getCellRaw: (pos: CellPosition) => string;
   getDisplayValue: (pos: CellPosition) => string;
+  getCellStyles: (pos: CellPosition) => CellStyles;
   onEditCommit: (row: number, col: number, value: string) => void;
   onStartEdit: (row: number, col: number) => void;
   onSelectCell: (row: number, col: number, withShift: boolean) => void;
@@ -32,6 +33,7 @@ export const Grid: React.FC<GridProps> = ({
   editingCell,
   getCellRaw,
   getDisplayValue,
+  getCellStyles,
   onEditCommit,
   onStartEdit,
   onSelectCell,
@@ -64,7 +66,6 @@ export const Grid: React.FC<GridProps> = ({
     currentLeft += getColumnWidth(i);
   }
 
-  // Нативные обработчики прокрутки (не React события)
   const handleBodyScroll = () => {
     if (!bodyRef.current) return;
     const scrollLeft = bodyRef.current.scrollLeft;
@@ -153,6 +154,7 @@ export const Grid: React.FC<GridProps> = ({
                   const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
                   const value = getDisplayValue({ row: rowIndex, col: colIndex });
                   const initialValue = getCellRaw({ row: rowIndex, col: colIndex });
+                  const styles = getCellStyles({ row: rowIndex, col: colIndex });
 
                   return (
                     <Cell
@@ -164,6 +166,7 @@ export const Grid: React.FC<GridProps> = ({
                       isInRange={isInRange}
                       isEditing={isEditing}
                       initialValue={initialValue}
+                      styles={styles}
                       onCommit={onEditCommit}
                       onSelect={onSelectCell}
                       onStartEdit={onStartEdit}

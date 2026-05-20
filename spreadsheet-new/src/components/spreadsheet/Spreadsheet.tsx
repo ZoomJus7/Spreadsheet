@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import {
   updateCell,
@@ -9,16 +9,22 @@ import {
   insertColumn,
   deleteColumn,
   setCellsFromImport,
+  updateCellStyles,
+  updateRangeStyles,
 } from '@/store/slices/spreadsheetSlice';
+import { clearCurrentDocument } from '@/store/slices/documentsSlice';
 import { updateDocument } from '@/services/mockApi';
 import { useEditing } from '@/hooks/useEditing';
 import { useResize } from '@/hooks/useResize';
 import { useContextMenu } from '@/hooks/useContextMenu';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { exportToCSV, exportToJSON } from '@/utils/exportUtils';
 import { importFromCSV } from '@/utils/importUtils';
 import { Grid } from './Grid';
 import { FormulaBar } from './FormulaBar';
 import { ContextMenu } from './ContextMenu';
+import { FormattingToolbar } from './FormattingToolbar';
+import type { CellStyles } from '@/types/spreadsheet';
 import '@/styles/spreadsheet.css';
 
 interface SpreadsheetProps {
@@ -28,7 +34,6 @@ interface SpreadsheetProps {
   cols: number;
   cells: Map<string, any>;
   onBack: () => void;
-  onSave?: () => void;
 }
 
 export const Spreadsheet: React.FC<SpreadsheetProps> = ({ 
@@ -48,20 +53,20 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
   const [formulaValue, setFormulaValue] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Инициализация таблицы при первом рендере
+  const currentStyles = useMemo(() => {
+    if (!selectedCell) return {};
+    const ref = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`;
+    const cell = cells.get(ref);
+    return cell?.styles || {};
+  }, [selectedCell, cells]);
+
   useEffect(() => {
     if (!isInitialized && initialCells) {
-      // Преобразуем Map в объект для Redux
-      const cellsObject: Record<string, any> = {};
-      initialCells.forEach((value, key) => {
-        cellsObject[key] = value;
-      });
       dispatch(setCellsFromImport({ cells: new Map(initialCells), rows: initialRows, cols: initialCols }));
       setIsInitialized(true);
     }
   }, [dispatch, initialCells, initialRows, initialCols, isInitialized]);
 
-  // Обновление формульной строки
   useEffect(() => {
     if (selectedCell && !editingCell) {
       const ref = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`;
@@ -70,7 +75,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     }
   }, [selectedCell, cells, editingCell]);
 
-  // Ручное сохранение по Ctrl+S
   useEffect(() => {
     const saveCurrentDocument = async () => {
       const cellsObject: Record<string, any> = {};
@@ -84,7 +88,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
           rows,
           cols,
         });
-        console.log('Document saved manually');
       } catch (err) {
         console.error('Manual save failed', err);
       }
@@ -104,6 +107,19 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [documentId, cells, rows, cols]);
 
+  useEffect(() => {
+    const handleSelectAll = (e: CustomEvent) => {
+      const { rows: totalRows, cols: totalCols } = e.detail;
+      dispatch(selectCell({ pos: { row: 0, col: 0 }, withShift: false }));
+      setTimeout(() => {
+        dispatch(selectCell({ pos: { row: totalRows - 1, col: totalCols - 1 }, withShift: true }));
+      }, 0);
+    };
+    
+    window.addEventListener('spreadsheet:selectAll', handleSelectAll as EventListener);
+    return () => window.removeEventListener('spreadsheet:selectAll', handleSelectAll as EventListener);
+  }, [dispatch, rows, cols]);
+
   const getCellRaw = useCallback((pos: { row: number; col: number }) => {
     const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
     const cell = cells.get(ref);
@@ -114,6 +130,12 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
     const cell = cells.get(ref);
     return cell ? String(cell.computed) : '';
+  }, [cells]);
+
+  const getCellStyles = useCallback((pos: { row: number; col: number }): CellStyles => {
+    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
+    const cell = cells.get(ref);
+    return cell?.styles || {};
   }, [cells]);
 
   const handleEditCommit = useCallback((row: number, col: number, value: string) => {
@@ -133,6 +155,14 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
       dispatch(clearSelection());
     }
   }, [dispatch, editingCell, stopEdit]);
+
+  const handleStyleChange = useCallback((styles: Partial<CellStyles>) => {
+    if (selectedRange && selectedRange.start && selectedRange.end) {
+      dispatch(updateRangeStyles({ range: selectedRange, styles }));
+    } else if (selectedCell) {
+      dispatch(updateCellStyles({ pos: selectedCell, styles }));
+    }
+  }, [dispatch, selectedCell, selectedRange]);
 
   const handleFormulaChange = (value: string) => setFormulaValue(value);
   
@@ -226,6 +256,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
   };
 
   const handleBack = () => {
+    dispatch(clearCurrentDocument());
     onBack();
   };
 
@@ -235,6 +266,54 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     if (saveStatus === 'error') return 'Ошибка';
     return '✓';
   };
+
+  const handleMoveRight = useCallback(() => {
+    if (selectedCell && selectedCell.col < cols - 1) {
+      dispatch(selectCell({ pos: { row: selectedCell.row, col: selectedCell.col + 1 }, withShift: false }));
+    }
+  }, [dispatch, selectedCell, cols]);
+
+  const handleMoveLeft = useCallback(() => {
+    if (selectedCell && selectedCell.col > 0) {
+      dispatch(selectCell({ pos: { row: selectedCell.row, col: selectedCell.col - 1 }, withShift: false }));
+    }
+  }, [dispatch, selectedCell]);
+
+  const handleMoveDown = useCallback(() => {
+    if (selectedCell && selectedCell.row < rows - 1) {
+      dispatch(selectCell({ pos: { row: selectedCell.row + 1, col: selectedCell.col }, withShift: false }));
+    }
+  }, [dispatch, selectedCell, rows]);
+
+  const handleMoveUp = useCallback(() => {
+    if (selectedCell && selectedCell.row > 0) {
+      dispatch(selectCell({ pos: { row: selectedCell.row - 1, col: selectedCell.col }, withShift: false }));
+    }
+  }, [dispatch, selectedCell]);
+
+  const handleBold = useCallback(() => {
+    handleStyleChange({ bold: !currentStyles.bold });
+  }, [handleStyleChange, currentStyles.bold]);
+
+  const handleItalic = useCallback(() => {
+    handleStyleChange({ italic: !currentStyles.italic });
+  }, [handleStyleChange, currentStyles.italic]);
+
+  const handleUnderline = useCallback(() => {
+    handleStyleChange({ underline: !currentStyles.underline });
+  }, [handleStyleChange, currentStyles.underline]);
+
+  useKeyboardShortcuts({
+    onBold: handleBold,
+    onItalic: handleItalic,
+    onUnderline: handleUnderline,
+    onMoveRight: handleMoveRight,
+    onMoveLeft: handleMoveLeft,
+    onMoveDown: handleMoveDown,
+    onMoveUp: handleMoveUp,
+    onExitEdit: () => stopEdit(),
+    isEditing: !!editingCell,
+  });
 
   if (!isInitialized) {
     return <div style={{ padding: 20 }}>Загрузка таблицы...</div>;
@@ -252,6 +331,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
         <button onClick={handleExportJSON}>JSON</button>
         <button onClick={handleImportCSV}>Импорт CSV</button>
       </div>
+      <FormattingToolbar onStyleChange={handleStyleChange} currentStyles={currentStyles} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <FormulaBar
           value={formulaValue}
@@ -270,6 +350,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
             editingCell={editingCell}
             getCellRaw={getCellRaw}
             getDisplayValue={getDisplayValue}
+            getCellStyles={getCellStyles}
             onEditCommit={handleEditCommit}
             onStartEdit={handleStartEdit}
             onSelectCell={handleSelectCell}

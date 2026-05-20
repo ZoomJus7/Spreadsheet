@@ -1,4 +1,5 @@
 import React, { memo, useRef, useEffect } from 'react';
+import type { CellStyles } from '@/types/spreadsheet';
 
 interface CellProps {
   row: number;
@@ -8,6 +9,7 @@ interface CellProps {
   isInRange: boolean;
   isEditing: boolean;
   initialValue: string;
+  styles?: CellStyles;
   onCommit: (row: number, col: number, value: string) => void;
   onSelect: (row: number, col: number, withShift: boolean) => void;
   onStartEdit: (row: number, col: number) => void;
@@ -22,10 +24,11 @@ export const Cell: React.FC<CellProps> = memo(({
   isInRange,
   isEditing,
   initialValue,
+  styles,
   onCommit,
   onSelect,
   onStartEdit,
-  style,
+  style: positionStyle,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -39,9 +42,7 @@ export const Cell: React.FC<CellProps> = memo(({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const value = inputRef.current?.value || '';
-      console.log('🔵 [Cell] Enter pressed:', { row, col, value });  // ЛОГ
-      onCommit(row, col, value);
+      onCommit(row, col, inputRef.current?.value || '');
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onSelect(row, col, false);
@@ -49,8 +50,7 @@ export const Cell: React.FC<CellProps> = memo(({
   };
 
   const handleBlur = () => {
-    const value = inputRef.current?.value || '';
-    onCommit(row, col, value);
+    onCommit(row, col, inputRef.current?.value || '');
   };
 
   const handleClick = (e: React.MouseEvent) => {
@@ -62,6 +62,17 @@ export const Cell: React.FC<CellProps> = memo(({
     onStartEdit(row, col);
   };
 
+  // Стили ячейки из форматирования
+  const cellStyles: React.CSSProperties = {
+    fontWeight: styles?.bold ? 'bold' : 'normal',
+    fontStyle: styles?.italic ? 'italic' : 'normal',
+    textDecoration: styles?.underline ? 'underline' : 'none',
+    backgroundColor: styles?.backgroundColor || 'transparent',
+    color: styles?.textColor || 'inherit',
+    textAlign: styles?.textAlign || 'left',
+    ...positionStyle,
+  };
+
   let className = 'spreadsheet-cell';
   if (isSelected) className += ' selected';
   if (isInRange && !isSelected) className += ' range';
@@ -69,7 +80,7 @@ export const Cell: React.FC<CellProps> = memo(({
   return (
     <div
       className={className}
-      style={style}
+      style={cellStyles}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
     >
