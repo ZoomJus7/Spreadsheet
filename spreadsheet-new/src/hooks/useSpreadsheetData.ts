@@ -10,15 +10,11 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
   const [rows, setRows] = useState(initialRows);
   const [cols, setCols] = useState(initialCols);
 
-  // Функция для получения значения ячейки по ссылке (использует текущее состояние)
-  // Она будет вызываться внутри updateCell с актуальным состоянием
   const getCellValueByRef = useCallback((cellsMap: Map<string, CellData>, ref: string): CellValue => {
     const cell = cellsMap.get(ref);
-    if (!cell) return '';
-    return cell.computed;
+    return cell ? cell.computed : '';
   }, []);
 
-  // Пересчёт всех формул в карте ячеек
   const recomputeFormulas = useCallback((cellsMap: Map<string, CellData>): Map<string, CellData> => {
     const newCells = new Map(cellsMap);
     let changed = false;
@@ -40,29 +36,19 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
     const ref = indexToCell(pos.row, pos.col);
     const type = detectType(rawValue);
     let computed: CellValue;
-    // Сначала создаём временную карту с обновлённой ячейкой
-    let newCell: CellData;
     if (type === 'formula') {
-      // Для формулы вычислить сразу, но зависимости могут быть не готовы – сначала запишем raw, потом пересчитаем
-      newCell = { raw: rawValue, computed: rawValue, type };
+      computed = rawValue;
     } else {
       computed = parseValue(rawValue, type);
-      newCell = { raw: rawValue, computed, type };
     }
+    const newCell: CellData = { raw: rawValue, computed, type };
     setCells(prev => {
-      const updatedMap = new Map(prev);
-      updatedMap.set(ref, newCell);
-      // Если это формула, нужно пересчитать все формулы после её добавления
-      if (type === 'formula') {
-        return recomputeFormulas(updatedMap);
-      } else {
-        // Для не-формул тоже пересчитать все формулы (так как они могли зависеть от изменённой ячейки)
-        return recomputeFormulas(updatedMap);
-      }
+      const updated = new Map(prev);
+      updated.set(ref, newCell);
+      return recomputeFormulas(updated);
     });
   }, [rows, cols, recomputeFormulas]);
 
-  // Остальные функции (insertRow, deleteRow и т.д.) должны также использовать recomputeFormulas
   const getCell = useCallback((pos: CellPosition): CellData | undefined => {
     if (pos.row < 0 || pos.row >= rows || pos.col < 0 || pos.col >= cols) return undefined;
     const ref = indexToCell(pos.row, pos.col);
@@ -70,13 +56,24 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
   }, [cells, rows, cols]);
 
   const getCellRaw = useCallback((pos: CellPosition): string => getCell(pos)?.raw ?? '', [getCell]);
-
+  
   const getDisplayValue = useCallback((pos: CellPosition): string => {
     const cell = getCell(pos);
     return cell ? String(cell.computed) : '';
   }, [getCell]);
 
-  // Вставка строки
+  // Новая функция для загрузки данных документа
+  const loadDocumentData = useCallback((newCells: Record<string, CellData>, newRows: number, newCols: number) => {
+    const cellsMap = new Map<string, CellData>();
+    for (const [key, value] of Object.entries(newCells)) {
+      cellsMap.set(key, value);
+    }
+    const finalMap = recomputeFormulas(cellsMap);
+    setCells(finalMap);
+    setRows(newRows);
+    setCols(newCols);
+  }, [recomputeFormulas]);
+
   const insertRow = useCallback((beforeRow: number) => {
     if (beforeRow < 0 || beforeRow > rows) return;
     setRows(prev => prev + 1);
@@ -85,13 +82,10 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
       for (const [ref, cell] of prev.entries()) {
         const pos = cellToIndex(ref);
         if (!pos) continue;
-        let newRow = pos.row;
-        if (pos.row >= beforeRow) newRow = pos.row + 1;
-        else newRow = pos.row;
+        let newRow = pos.row >= beforeRow ? pos.row + 1 : pos.row;
         const newRef = indexToCell(newRow, pos.col);
         newMap.set(newRef, cell);
       }
-      // После сдвига строк пересчитать формулы
       return recomputeFormulas(newMap);
     });
   }, [rows, recomputeFormulas]);
@@ -105,9 +99,7 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
         const pos = cellToIndex(ref);
         if (!pos) continue;
         if (pos.row === rowIndex) continue;
-        let newRow = pos.row;
-        if (pos.row > rowIndex) newRow = pos.row - 1;
-        else newRow = pos.row;
+        let newRow = pos.row > rowIndex ? pos.row - 1 : pos.row;
         const newRef = indexToCell(newRow, pos.col);
         newMap.set(newRef, cell);
       }
@@ -123,9 +115,7 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
       for (const [ref, cell] of prev.entries()) {
         const pos = cellToIndex(ref);
         if (!pos) continue;
-        let newCol = pos.col;
-        if (pos.col >= beforeCol) newCol = pos.col + 1;
-        else newCol = pos.col;
+        let newCol = pos.col >= beforeCol ? pos.col + 1 : pos.col;
         const newRef = indexToCell(pos.row, newCol);
         newMap.set(newRef, cell);
       }
@@ -142,9 +132,7 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
         const pos = cellToIndex(ref);
         if (!pos) continue;
         if (pos.col === colIndex) continue;
-        let newCol = pos.col;
-        if (pos.col > colIndex) newCol = pos.col - 1;
-        else newCol = pos.col;
+        let newCol = pos.col > colIndex ? pos.col - 1 : pos.col;
         const newRef = indexToCell(pos.row, newCol);
         newMap.set(newRef, cell);
       }
@@ -154,15 +142,16 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
 
   return {
     cells,
+    rows,
+    cols,
     updateCell,
     getCell,
     getCellRaw,
     getDisplayValue,
+    loadDocumentData,
     insertRow,
     deleteRow,
     insertColumn,
     deleteColumn,
-    rows,
-    cols,
   };
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { KeyboardEvent } from 'react';
 
 interface FormulaBarProps {
   value: string;
@@ -8,10 +8,12 @@ interface FormulaBarProps {
 }
 
 export const FormulaBar: React.FC<FormulaBarProps> = ({ value, onChange, onCommit, onCancel }) => {
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       onCommit();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       onCancel();
     }
   };
