@@ -30,9 +30,8 @@
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: auto 1fr;
-  flex: 1;
+  height: 100%;
   overflow: hidden;
-  position: relative;
 }
 
 .top-left-corner {
@@ -47,32 +46,19 @@
 }
 
 .col-headers {
-  grid-row: 1;
-  grid-column: 2;
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
-  background-color: #f0f0f0;
-  border-bottom: 1px solid #ccc;
-  position: relative;
-  scrollbar-width: thin;
-}
-.col-headers::-webkit-scrollbar {
-  height: 8px;
 }
 
 .row-headers {
-  grid-row: 2;
-  grid-column: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  background-color: #f0f0f0;
-  border-right: 1px solid #ccc;
-  position: relative;
-  scrollbar-width: thin;
 }
+
+.col-headers::-webkit-scrollbar,
 .row-headers::-webkit-scrollbar {
-  width: 8px;
+  display: none;
 }
 
 .col-header {
@@ -132,11 +118,8 @@
 }
 
 .grid-body {
-  grid-row: 2;
-  grid-column: 2;
-  overflow: auto;
+  overflow: hidden;
   position: relative;
-  scrollbar-width: thin;
 }
 
 .spreadsheet-cell {
