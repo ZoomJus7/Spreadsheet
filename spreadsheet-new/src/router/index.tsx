@@ -3,16 +3,31 @@ import AppLayout from '@/layouts/AppLayout';
 import DashboardPage from '@/pages/DashboardPage';
 import SpreadsheetPage from '@/pages/SpreadsheetPage';
 import ProfilePage from '@/pages/ProfilePage';
+import LoginPage from '@/pages/LoginPage';
+import RegisterPage from '@/pages/RegisterPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
+    path: '/register',
+    element: <RegisterPage />,
+  },
+  {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         index: true,
-        element: <DashboardPage />,
+        element: <Navigate to="/dashboard" replace />,
       },
       {
         path: 'dashboard',
@@ -37,3 +52,6 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
+// Добавляем импорт Navigate
+import { Navigate } from 'react-router-dom';
