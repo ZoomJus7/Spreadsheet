@@ -45,13 +45,11 @@ export const Grid: React.FC<GridProps> = ({
   const getColumnWidth = (index: number): number => columnWidths[index] ?? DEFAULT_COLUMN_WIDTH;
   const getRowHeight = (index: number): number => rowHeights[index] ?? DEFAULT_ROW_HEIGHT;
 
-  // Вычисление общей ширины и высоты
   let totalWidth = 0;
   for (let i = 0; i < cols; i++) totalWidth += getColumnWidth(i);
   let totalHeight = 0;
   for (let i = 0; i < rows; i++) totalHeight += getRowHeight(i);
 
-  // Предварительный расчёт позиций строк и столбцов
   const rowTops: number[] = [];
   let currentTop = 0;
   for (let i = 0; i < rows; i++) {
@@ -66,7 +64,7 @@ export const Grid: React.FC<GridProps> = ({
     currentLeft += getColumnWidth(i);
   }
 
-  // Обработчик прокрутки тела таблицы
+  // Нативные обработчики прокрутки (не React события)
   const handleBodyScroll = () => {
     if (!bodyRef.current) return;
     const scrollLeft = bodyRef.current.scrollLeft;
@@ -75,23 +73,19 @@ export const Grid: React.FC<GridProps> = ({
     if (rowHeaderRef.current) rowHeaderRef.current.scrollTop = scrollTop;
   };
 
-  // Обработчик прокрутки заголовка столбцов
   const handleColHeaderScroll = () => {
     if (!colHeaderRef.current || !bodyRef.current) return;
     bodyRef.current.scrollLeft = colHeaderRef.current.scrollLeft;
   };
 
-  // Обработчик прокрутки заголовка строк
   const handleRowHeaderScroll = () => {
     if (!rowHeaderRef.current || !bodyRef.current) return;
     bodyRef.current.scrollTop = rowHeaderRef.current.scrollTop;
   };
 
-  // Инициализация ссылок и навешивание обработчиков после монтирования
   useEffect(() => {
     colHeaderRef.current = document.querySelector('.col-headers');
     rowHeaderRef.current = document.querySelector('.row-headers');
-    
     const colElem = colHeaderRef.current;
     const rowElem = rowHeaderRef.current;
     const bodyElem = bodyRef.current;
@@ -106,14 +100,6 @@ export const Grid: React.FC<GridProps> = ({
       bodyElem.addEventListener('scroll', handleBodyScroll);
     }
 
-    // Синхронизация начальных положений
-    if (bodyElem && colElem) {
-      colElem.scrollLeft = bodyElem.scrollLeft;
-    }
-    if (bodyElem && rowElem) {
-      rowElem.scrollTop = bodyElem.scrollTop;
-    }
-
     return () => {
       if (colElem) colElem.removeEventListener('scroll', handleColHeaderScroll);
       if (rowElem) rowElem.removeEventListener('scroll', handleRowHeaderScroll);
@@ -121,7 +107,6 @@ export const Grid: React.FC<GridProps> = ({
     };
   }, []);
 
-  // Синхронизация при изменении размеров столбцов/строк
   useLayoutEffect(() => {
     if (bodyRef.current && colHeaderRef.current) {
       colHeaderRef.current.scrollLeft = bodyRef.current.scrollLeft;

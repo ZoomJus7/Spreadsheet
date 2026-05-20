@@ -37,14 +37,12 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
   const { editingCell, startEdit, stopEdit, inputRef } = useEditing();
   const [formulaValue, setFormulaValue] = useState('');
 
-  // Загрузка документа при монтировании или смене documentId
   useEffect(() => {
     if (documentId) {
       dispatch(fetchDocumentById(documentId));
     }
   }, [dispatch, documentId]);
 
-  // Загрузка данных в таблицу после получения документа
   useEffect(() => {
     if (currentDocument && currentDocument.id === documentId) {
       dispatch(loadDocumentData({
@@ -55,7 +53,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     }
   }, [dispatch, currentDocument, documentId]);
 
-  // Обновление формульной строки при выборе ячейки
   useEffect(() => {
     if (selectedCell && !editingCell) {
       const ref = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`;
@@ -63,6 +60,18 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
       setFormulaValue(cell?.raw ?? '');
     }
   }, [selectedCell, cells, editingCell]);
+
+  const getCellRaw = useCallback((pos: { row: number; col: number }) => {
+    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
+    const cell = cells.get(ref);
+    return cell?.raw ?? '';
+  }, [cells]);
+
+  const getDisplayValue = useCallback((pos: { row: number; col: number }) => {
+    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
+    const cell = cells.get(ref);
+    return cell ? String(cell.computed) : '';
+  }, [cells]);
 
   const handleEditCommit = useCallback((row: number, col: number, value: string) => {
     dispatch(updateCell({ pos: { row, col }, rawValue: value }));
@@ -99,17 +108,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     }
     stopEdit();
   };
-
-  const getCellRaw = useCallback((pos: { row: number; col: number }) => {
-    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
-    return cells.get(ref)?.raw ?? '';
-  }, [cells]);
-
-  const getDisplayValue = useCallback((pos: { row: number; col: number }) => {
-    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
-    const cell = cells.get(ref);
-    return cell ? String(cell.computed) : '';
-  }, [cells]);
 
   const handleExportCSV = () => exportToCSV(rows, cols, (r, c) => getDisplayValue({ row: r, col: c }));
   const handleExportJSON = () => exportToJSON(rows, cols, (r, c) => getCellRaw({ row: r, col: c }));

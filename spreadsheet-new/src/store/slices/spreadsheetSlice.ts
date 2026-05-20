@@ -82,14 +82,17 @@ const spreadsheetSlice = createSlice({
     updateCell: (state, action: PayloadAction<{ pos: CellPosition; rawValue: string }>) => {
       const { pos, rawValue } = action.payload;
       if (pos.row < 0 || pos.row >= state.rows || pos.col < 0 || pos.col >= state.cols) return;
+      
       const ref = indexToCell(pos.row, pos.col);
       const type = detectType(rawValue);
       let computed: string | number | boolean;
+      
       if (type === 'formula') {
         computed = rawValue;
       } else {
         computed = parseValue(rawValue, type);
       }
+      
       const newCell: CellData = { raw: rawValue, computed, type };
       const newCells = new Map(state.cells);
       newCells.set(ref, newCell);

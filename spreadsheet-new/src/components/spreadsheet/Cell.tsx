@@ -39,7 +39,9 @@ export const Cell: React.FC<CellProps> = memo(({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      onCommit(row, col, inputRef.current?.value || '');
+      const value = inputRef.current?.value || '';
+      console.log('🔵 [Cell] Enter pressed:', { row, col, value });  // ЛОГ
+      onCommit(row, col, value);
     } else if (e.key === 'Escape') {
       e.preventDefault();
       onSelect(row, col, false);
@@ -47,7 +49,8 @@ export const Cell: React.FC<CellProps> = memo(({
   };
 
   const handleBlur = () => {
-    onCommit(row, col, inputRef.current?.value || '');
+    const value = inputRef.current?.value || '';
+    onCommit(row, col, value);
   };
 
   const handleClick = (e: React.MouseEvent) => {
