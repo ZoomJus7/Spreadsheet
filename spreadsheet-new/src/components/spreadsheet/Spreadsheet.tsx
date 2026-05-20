@@ -12,6 +12,7 @@ import {
   setCellsFromImport,
 } from '@/store/slices/spreadsheetSlice';
 import { fetchDocumentById, clearCurrentDocument } from '@/store/slices/documentsSlice';
+import { updateDocument } from '@/services/mockApi';
 import { useEditing } from '@/hooks/useEditing';
 import { useResize } from '@/hooks/useResize';
 import { useContextMenu } from '@/hooks/useContextMenu';
@@ -60,6 +61,43 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
       setFormulaValue(cell?.raw ?? '');
     }
   }, [selectedCell, cells, editingCell]);
+
+  useEffect(() => {
+    const saveCurrentDocument = async () => {
+      if (!currentDocument?.id) return;
+      
+      console.log('Manual save triggered');
+      
+      const cellsObject: Record<string, any> = {};
+      cells.forEach((value, key) => {
+        cellsObject[key] = value;
+      });
+      
+      try {
+        await updateDocument(currentDocument.id, {
+          cells: cellsObject,
+          rows,
+          cols,
+        });
+        console.log('Document saved manually');
+      } catch (err) {
+        console.error('Manual save failed', err);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        saveCurrentDocument();
+        return false;
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [currentDocument, cells, rows, cols]);
 
   const getCellRaw = useCallback((pos: { row: number; col: number }) => {
     const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;

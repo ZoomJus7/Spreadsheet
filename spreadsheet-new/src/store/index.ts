@@ -21,5 +21,9 @@ export const store = configureStore({
     }).concat(autoSaveMiddleware),
 });
 
+if (typeof window !== 'undefined') {
+  (window as any).__store__ = store;
+}
+
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
