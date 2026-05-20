@@ -1,12 +1,20 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { useSpreadsheetData } from '@/hooks/useSpreadsheetData';
-import { useSelection } from '@/hooks/useSelection';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import {
+  updateCell,
+  selectCell,
+  clearSelection,
+  insertRow,
+  deleteRow,
+  insertColumn,
+  deleteColumn,
+  loadDocumentData,
+  setCellsFromImport,
+} from '@/store/slices/spreadsheetSlice';
+import { fetchDocumentById, clearCurrentDocument } from '@/store/slices/documentsSlice';
 import { useEditing } from '@/hooks/useEditing';
 import { useResize } from '@/hooks/useResize';
 import { useContextMenu } from '@/hooks/useContextMenu';
-import { useAutoSave } from '@/hooks/useAutoSave';
-import { useBeforeUnload } from '@/hooks/useBeforeUnload';
-import { getDocumentById } from '@/services/mockApi';
 import { exportToCSV, exportToJSON } from '@/utils/exportUtils';
 import { importFromCSV } from '@/utils/importUtils';
 import { Grid } from './Grid';
@@ -20,79 +28,46 @@ interface SpreadsheetProps {
 }
 
 export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) => {
-  const [loading, setLoading] = useState(true);
-  const [docName, setDocName] = useState('');
-  const [isDirty, setIsDirty] = useState(false);
-  const lastSavedHashRef = useRef('');
-
-  const {
-    cells,
-    rows,
-    cols,
-    updateCell,
-    getCellRaw,
-    getDisplayValue,
-    loadDocumentData,
-    insertRow,
-    deleteRow,
-    insertColumn,
-    deleteColumn,
-  } = useSpreadsheetData(100, 26);
-
-  const { status: saveStatus, saveNow } = useAutoSave(documentId, cells, rows, cols, 500);
-  const { selectedCell, selectedRange, selectCell, clearSelection } = useSelection();
+  const dispatch = useAppDispatch();
+  const { cells, rows, cols, selectedCell, selectedRange } = useAppSelector((state) => state.spreadsheet);
+  const { currentDocument, loading } = useAppSelector((state) => state.documents);
+  const { saveStatus } = useAppSelector((state) => state.ui);
   const { columnWidths, rowHeights, startResize } = useResize({}, {});
   const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
   const { editingCell, startEdit, stopEdit, inputRef } = useEditing();
   const [formulaValue, setFormulaValue] = useState('');
 
-  useBeforeUnload(isDirty);
-
+  // Загрузка документа при монтировании или смене documentId
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const doc = await getDocumentById(documentId);
-      if (doc) {
-        setDocName(doc.name);
-        loadDocumentData(doc.cells, doc.rows, doc.cols);
-      } else {
-        alert('Документ не найден');
-        onBack();
-      }
-      setLoading(false);
-    };
-    load();
-  }, [documentId, loadDocumentData, onBack]);
-
-  useEffect(() => {
-    const hash = JSON.stringify(Array.from(cells.entries()));
-    setIsDirty(hash !== lastSavedHashRef.current);
-    if (!loading) {
-      lastSavedHashRef.current = hash;
+    if (documentId) {
+      dispatch(fetchDocumentById(documentId));
     }
-  }, [cells, loading]);
+  }, [dispatch, documentId]);
 
+  // Загрузка данных в таблицу после получения документа
   useEffect(() => {
-    const handleCtrlS = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        saveNow();
-      }
-    };
-    window.addEventListener('keydown', handleCtrlS);
-    return () => window.removeEventListener('keydown', handleCtrlS);
-  }, [saveNow]);
+    if (currentDocument && currentDocument.id === documentId) {
+      dispatch(loadDocumentData({
+        cells: currentDocument.cells,
+        rows: currentDocument.rows,
+        cols: currentDocument.cols,
+      }));
+    }
+  }, [dispatch, currentDocument, documentId]);
 
+  // Обновление формульной строки при выборе ячейки
   useEffect(() => {
     if (selectedCell && !editingCell) {
-      setFormulaValue(getCellRaw(selectedCell));
+      const ref = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`;
+      const cell = cells.get(ref);
+      setFormulaValue(cell?.raw ?? '');
     }
-  }, [selectedCell, getCellRaw, editingCell]);
+  }, [selectedCell, cells, editingCell]);
 
   const handleEditCommit = useCallback((row: number, col: number, value: string) => {
-    updateCell({ row, col }, value);
+    dispatch(updateCell({ pos: { row, col }, rawValue: value }));
     stopEdit();
-  }, [updateCell, stopEdit]);
+  }, [dispatch, stopEdit]);
 
   const handleStartEdit = useCallback((row: number, col: number) => {
     startEdit({ row, col });
@@ -100,27 +75,45 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
 
   const handleSelectCell = useCallback((row: number, col: number, withShift: boolean) => {
     if (row >= 0 && col >= 0) {
-      selectCell({ row, col }, withShift);
+      dispatch(selectCell({ pos: { row, col }, withShift }));
       if (editingCell) stopEdit();
     } else {
-      clearSelection();
+      dispatch(clearSelection());
     }
-  }, [selectCell, clearSelection, editingCell, stopEdit]);
+  }, [dispatch, editingCell, stopEdit]);
 
   const handleFormulaChange = (value: string) => setFormulaValue(value);
+  
   const handleFormulaCommit = () => {
     if (selectedCell) {
-      updateCell(selectedCell, formulaValue);
+      dispatch(updateCell({ pos: selectedCell, rawValue: formulaValue }));
       stopEdit();
     }
   };
+  
   const handleFormulaCancel = () => {
-    if (selectedCell) setFormulaValue(getCellRaw(selectedCell));
+    if (selectedCell) {
+      const ref = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`;
+      const cell = cells.get(ref);
+      setFormulaValue(cell?.raw ?? '');
+    }
     stopEdit();
   };
 
+  const getCellRaw = useCallback((pos: { row: number; col: number }) => {
+    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
+    return cells.get(ref)?.raw ?? '';
+  }, [cells]);
+
+  const getDisplayValue = useCallback((pos: { row: number; col: number }) => {
+    const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
+    const cell = cells.get(ref);
+    return cell ? String(cell.computed) : '';
+  }, [cells]);
+
   const handleExportCSV = () => exportToCSV(rows, cols, (r, c) => getDisplayValue({ row: r, col: c }));
   const handleExportJSON = () => exportToJSON(rows, cols, (r, c) => getCellRaw({ row: r, col: c }));
+  
   const handleImportCSV = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -130,7 +123,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
       if (file) {
         try {
           const { cells: newCells, rows: newRows, cols: newCols } = await importFromCSV(file);
-          loadDocumentData(Object.fromEntries(newCells), newRows, newCols);
+          dispatch(setCellsFromImport({ cells: newCells, rows: newRows, cols: newCols }));
         } catch {
           alert('Ошибка импорта CSV');
         }
@@ -147,7 +140,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     let target = -1;
     if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) target = contextMenu.index;
     else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.row;
-    if (target !== -1) insertRow(target);
+    if (target !== -1) dispatch(insertRow(target));
     closeContextMenu();
   };
 
@@ -155,7 +148,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     let target = -1;
     if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) target = contextMenu.index + 1;
     else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.row + 1;
-    if (target !== -1 && target <= rows) insertRow(target);
+    if (target !== -1 && target <= rows) dispatch(insertRow(target));
     closeContextMenu();
   };
 
@@ -163,7 +156,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     let target = -1;
     if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) target = contextMenu.index;
     else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.row;
-    if (target !== -1) deleteRow(target);
+    if (target !== -1) dispatch(deleteRow(target));
     closeContextMenu();
   };
 
@@ -171,7 +164,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     let target = -1;
     if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) target = contextMenu.index;
     else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.col;
-    if (target !== -1) insertColumn(target);
+    if (target !== -1) dispatch(insertColumn(target));
     closeContextMenu();
   };
 
@@ -179,7 +172,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     let target = -1;
     if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) target = contextMenu.index + 1;
     else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.col + 1;
-    if (target !== -1 && target <= cols) insertColumn(target);
+    if (target !== -1 && target <= cols) dispatch(insertColumn(target));
     closeContextMenu();
   };
 
@@ -187,11 +180,14 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     let target = -1;
     if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) target = contextMenu.index;
     else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.col;
-    if (target !== -1) deleteColumn(target);
+    if (target !== -1) dispatch(deleteColumn(target));
     closeContextMenu();
   };
 
-  if (loading) return <div style={{ padding: 20 }}>Загрузка документа...</div>;
+  const handleBack = () => {
+    dispatch(clearCurrentDocument());
+    onBack();
+  };
 
   const getStatusText = () => {
     if (saveStatus === 'saving') return 'Сохранение...';
@@ -200,18 +196,20 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     return '✓';
   };
 
+  if (loading) return <div style={{ padding: 20 }}>Загрузка документа...</div>;
+  if (!currentDocument) return <div style={{ padding: 20 }}>Документ не найден</div>;
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '8px 16px', background: '#f0f0f0', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid #ccc', flexWrap: 'wrap' }}>
-        <button onClick={onBack}>← Назад</button>
-        <span style={{ fontWeight: 'bold' }}>{docName}</span>
+        <button onClick={handleBack}>← Назад</button>
+        <span style={{ fontWeight: 'bold' }}>{currentDocument.name}</span>
         <span style={{ marginLeft: 'auto', fontSize: '12px', color: saveStatus === 'error' ? 'red' : '#555' }}>
           {getStatusText()}
         </span>
         <button onClick={handleExportCSV}>CSV</button>
         <button onClick={handleExportJSON}>JSON</button>
         <button onClick={handleImportCSV}>Импорт CSV</button>
-        <button onClick={saveNow}>💾 Ctrl+S</button>
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <FormulaBar

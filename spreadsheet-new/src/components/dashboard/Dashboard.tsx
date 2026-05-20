@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useDocuments } from '@/hooks/useDocuments';
+import React, { useEffect, useState } from 'react';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { fetchDocuments, createNewDocument, renameDocument, deleteDocumentThunk, duplicateDocumentThunk } from '@/store/slices/documentsSlice';
+import { openCreateModal, closeCreateModal, openRenameModal, closeRenameModal, openDeleteModal, closeDeleteModal } from '@/store/slices/uiSlice';
 import { DocumentCard } from './DocumentCard';
 import { CreateDocumentModal } from './CreateDocumentModal';
+import { RenameDocumentModal } from './RenameDocumentModal';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 import { getDocumentById } from '@/services/mockApi';
 import { indexToCell } from '@/utils/formulas/cellReference';
 import type { PreviewCells } from '@/types/document';
@@ -12,42 +16,67 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onSelectDocument }) => {
-  const { documents, loading, add, rename, remove, duplicate, refresh } = useDocuments();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const dispatch = useAppDispatch();
+  const { list: documents, loading } = useAppSelector((state) => state.documents);
+  const { isCreateModalOpen, isRenameModalOpen, isDeleteModalOpen, modalData } = useAppSelector((state) => state.ui);
   const [previews, setPreviews] = useState<Record<string, PreviewCells>>({});
 
-  const loadPreviews = useCallback(async () => {
-    const newPreviews: Record<string, PreviewCells> = {};
-    for (const doc of documents) {
-      const fullDoc = await getDocumentById(doc.id);
-      if (fullDoc) {
-        const preview: PreviewCells = [];
-        for (let r = 0; r < Math.min(3, fullDoc.rows); r++) {
-          const row: (string | number | boolean)[] = [];
-          for (let c = 0; c < Math.min(3, fullDoc.cols); c++) {
-            const ref = indexToCell(r, c);
-            const cell = fullDoc.cells[ref];
-            row.push(cell ? cell.computed : '');
-          }
-          preview.push(row);
-        }
-        newPreviews[doc.id] = preview;
-      }
-    }
-    setPreviews(newPreviews);
-  }, [documents]);
+  useEffect(() => {
+    dispatch(fetchDocuments());
+  }, [dispatch]);
 
   useEffect(() => {
+    const loadPreviews = async () => {
+      const newPreviews: Record<string, PreviewCells> = {};
+      for (const doc of documents) {
+        const fullDoc = await getDocumentById(doc.id);
+        if (fullDoc) {
+          const preview: PreviewCells = [];
+          for (let r = 0; r < Math.min(3, fullDoc.rows); r++) {
+            const row: (string | number | boolean)[] = [];
+            for (let c = 0; c < Math.min(3, fullDoc.cols); c++) {
+              const ref = indexToCell(r, c);
+              const cell = fullDoc.cells[ref];
+              row.push(cell ? cell.computed : '');
+            }
+            preview.push(row);
+          }
+          newPreviews[doc.id] = preview;
+        }
+      }
+      setPreviews(newPreviews);
+    };
     if (documents.length > 0) {
       loadPreviews();
     }
-  }, [documents, loadPreviews]);
+  }, [documents]);
 
   const handleCreate = async (name: string, rows: number, cols: number) => {
-    const newDoc = await add(name, rows, cols);
-    if (newDoc) {
-      onSelectDocument(newDoc.id);
+    const result = await dispatch(createNewDocument({ name, rows, cols }));
+    if (createNewDocument.fulfilled.match(result)) {
+      onSelectDocument(result.payload.id);
     }
+    dispatch(closeCreateModal());
+  };
+
+  const handleRename = async (newName: string) => {
+    const id = modalData.documentId;
+    if (id) {
+      await dispatch(renameDocument({ id, newName }));
+    }
+    dispatch(closeRenameModal());
+  };
+
+  const handleDelete = async () => {
+    const id = modalData.documentId;
+    if (id) {
+      await dispatch(deleteDocumentThunk(id));
+    }
+    dispatch(closeDeleteModal());
+  };
+
+  const handleDuplicate = async (id: string) => {
+    await dispatch(duplicateDocumentThunk(id));
   };
 
   if (loading) return <div className="loading">Загрузка...</div>;
@@ -57,8 +86,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectDocument }) => {
       <div className="dashboard-header">
         <h1>Мои документы</h1>
         <div>
-          <button onClick={() => setIsCreateOpen(true)}>+ Новый документ</button>
-          <button onClick={refresh}>Обновить</button>
+          <button onClick={() => dispatch(openCreateModal())}>+ Новый документ</button>
+          <button onClick={() => dispatch(fetchDocuments())}>Обновить</button>
         </div>
       </div>
       <div className="documents-grid">
@@ -67,17 +96,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectDocument }) => {
             key={doc.id}
             document={doc}
             onOpen={onSelectDocument}
-            onRename={rename}
-            onDelete={remove}
-            onDuplicate={duplicate}
+            onRename={(id, name) => dispatch(openRenameModal({ documentId: id, currentName: name }))}
+            onDelete={(id, name) => dispatch(openDeleteModal({ documentId: id, documentName: name }))}
+            onDuplicate={handleDuplicate}
             preview={previews[doc.id] || []}
           />
         ))}
       </div>
       <CreateDocumentModal
-        isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        isOpen={isCreateModalOpen}
+        onClose={() => dispatch(closeCreateModal())}
         onCreate={handleCreate}
+      />
+      <RenameDocumentModal
+        isOpen={isRenameModalOpen}
+        onClose={() => dispatch(closeRenameModal())}
+        onRename={handleRename}
+        currentName={modalData.currentName || ''}
+      />
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => dispatch(closeDeleteModal())}
+        onConfirm={handleDelete}
+        documentName={modalData.documentName || ''}
       />
     </div>
   );

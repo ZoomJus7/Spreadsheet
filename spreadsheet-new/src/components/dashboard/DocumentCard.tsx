@@ -7,7 +7,7 @@ interface DocumentCardProps {
   document: DocumentMeta;
   onOpen: (id: string) => void;
   onRename: (id: string, newName: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, name: string) => void;
   onDuplicate: (id: string) => void;
   preview: (string | number | boolean)[][];
 }
@@ -23,8 +23,16 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
+  const formatDate = (timestamp: number) => new Date(timestamp).toLocaleDateString();
+
+  const handleRename = (newName: string) => {
+    onRename(document.id, newName);
+    setIsRenameOpen(false);
+  };
+
+  const handleDelete = () => {
+    onDelete(document.id, document.name);
+    setIsDeleteOpen(false);
   };
 
   return (
@@ -62,13 +70,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <RenameDocumentModal
         isOpen={isRenameOpen}
         onClose={() => setIsRenameOpen(false)}
-        onRename={(newName) => onRename(document.id, newName)}
+        onRename={handleRename}
         currentName={document.name}
       />
       <ConfirmDeleteModal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
-        onConfirm={() => onDelete(document.id)}
+        onConfirm={handleDelete}
         documentName={document.name}
       />
     </div>
