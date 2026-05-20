@@ -8,10 +8,8 @@ import {
   deleteRow,
   insertColumn,
   deleteColumn,
-  loadDocumentData,
   setCellsFromImport,
 } from '@/store/slices/spreadsheetSlice';
-import { fetchDocumentById, clearCurrentDocument } from '@/store/slices/documentsSlice';
 import { updateDocument } from '@/services/mockApi';
 import { useEditing } from '@/hooks/useEditing';
 import { useResize } from '@/hooks/useResize';
@@ -25,35 +23,45 @@ import '@/styles/spreadsheet.css';
 
 interface SpreadsheetProps {
   documentId: string;
+  documentName: string;
+  rows: number;
+  cols: number;
+  cells: Map<string, any>;
   onBack: () => void;
+  onSave?: () => void;
 }
 
-export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) => {
+export const Spreadsheet: React.FC<SpreadsheetProps> = ({ 
+  documentId, 
+  documentName,
+  rows: initialRows,
+  cols: initialCols,
+  cells: initialCells,
+  onBack,
+}) => {
   const dispatch = useAppDispatch();
   const { cells, rows, cols, selectedCell, selectedRange } = useAppSelector((state) => state.spreadsheet);
-  const { currentDocument, loading } = useAppSelector((state) => state.documents);
   const { saveStatus } = useAppSelector((state) => state.ui);
   const { columnWidths, rowHeights, startResize } = useResize({}, {});
   const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
   const { editingCell, startEdit, stopEdit, inputRef } = useEditing();
   const [formulaValue, setFormulaValue] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
 
+  // Инициализация таблицы при первом рендере
   useEffect(() => {
-    if (documentId) {
-      dispatch(fetchDocumentById(documentId));
+    if (!isInitialized && initialCells) {
+      // Преобразуем Map в объект для Redux
+      const cellsObject: Record<string, any> = {};
+      initialCells.forEach((value, key) => {
+        cellsObject[key] = value;
+      });
+      dispatch(setCellsFromImport({ cells: new Map(initialCells), rows: initialRows, cols: initialCols }));
+      setIsInitialized(true);
     }
-  }, [dispatch, documentId]);
+  }, [dispatch, initialCells, initialRows, initialCols, isInitialized]);
 
-  useEffect(() => {
-    if (currentDocument && currentDocument.id === documentId) {
-      dispatch(loadDocumentData({
-        cells: currentDocument.cells,
-        rows: currentDocument.rows,
-        cols: currentDocument.cols,
-      }));
-    }
-  }, [dispatch, currentDocument, documentId]);
-
+  // Обновление формульной строки
   useEffect(() => {
     if (selectedCell && !editingCell) {
       const ref = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`;
@@ -62,19 +70,16 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     }
   }, [selectedCell, cells, editingCell]);
 
+  // Ручное сохранение по Ctrl+S
   useEffect(() => {
     const saveCurrentDocument = async () => {
-      if (!currentDocument?.id) return;
-      
-      console.log('Manual save triggered');
-      
       const cellsObject: Record<string, any> = {};
       cells.forEach((value, key) => {
         cellsObject[key] = value;
       });
       
       try {
-        await updateDocument(currentDocument.id, {
+        await updateDocument(documentId, {
           cells: cellsObject,
           rows,
           cols,
@@ -97,7 +102,7 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [currentDocument, cells, rows, cols]);
+  }, [documentId, cells, rows, cols]);
 
   const getCellRaw = useCallback((pos: { row: number; col: number }) => {
     const ref = `${String.fromCharCode(65 + pos.col)}${pos.row + 1}`;
@@ -221,7 +226,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
   };
 
   const handleBack = () => {
-    dispatch(clearCurrentDocument());
     onBack();
   };
 
@@ -232,14 +236,15 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) 
     return '✓';
   };
 
-  if (loading) return <div style={{ padding: 20 }}>Загрузка документа...</div>;
-  if (!currentDocument) return <div style={{ padding: 20 }}>Документ не найден</div>;
+  if (!isInitialized) {
+    return <div style={{ padding: 20 }}>Загрузка таблицы...</div>;
+  }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '8px 16px', background: '#f0f0f0', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid #ccc', flexWrap: 'wrap' }}>
         <button onClick={handleBack}>← Назад</button>
-        <span style={{ fontWeight: 'bold' }}>{currentDocument.name}</span>
+        <span style={{ fontWeight: 'bold' }}>{documentName}</span>
         <span style={{ marginLeft: 'auto', fontSize: '12px', color: saveStatus === 'error' ? 'red' : '#555' }}>
           {getStatusText()}
         </span>
