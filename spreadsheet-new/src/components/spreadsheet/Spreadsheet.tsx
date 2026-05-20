@@ -15,6 +15,10 @@ export const Spreadsheet: React.FC = () => {
     updateCell,
     getCellRaw,
     getDisplayValue,
+    insertRow,
+    deleteRow,
+    insertColumn,
+    deleteColumn,
     rows,
     cols,
   } = useSpreadsheetData(DEFAULT_ROWS, DEFAULT_COLS);
@@ -26,14 +30,14 @@ export const Spreadsheet: React.FC = () => {
 
   const [formulaValue, setFormulaValue] = useState('');
 
-  // Обновление формулы при смене выбранной ячейки
+  // Обновление формульной строки при смене выбранной ячейки
   useEffect(() => {
     if (selectedCell && !editingCell) {
       setFormulaValue(getCellRaw(selectedCell));
     }
   }, [selectedCell, getCellRaw, editingCell]);
 
-  // Если редактируем ячейку, формульная строка показывает её текущее значение
+  // При активном редактировании формульная строка отображает текущее значение
   useEffect(() => {
     if (editingCell && selectedCell) {
       setFormulaValue(getCellRaw(selectedCell));
@@ -62,11 +66,7 @@ export const Spreadsheet: React.FC = () => {
 
   const handleFormulaChange = useCallback((value: string) => {
     setFormulaValue(value);
-    // Опционально: можно обновлять ячейку в реальном времени (раскомментировать при желании)
-    // if (selectedCell && !editingCell) {
-    //   updateCell(selectedCell, value);
-    // }
-  }, [selectedCell, editingCell, updateCell]);
+  }, []);
 
   const handleFormulaCommit = useCallback(() => {
     if (selectedCell) {
@@ -92,11 +92,41 @@ export const Spreadsheet: React.FC = () => {
     openContextMenu(e, type, index, row !== undefined && col !== undefined ? { row, col } : undefined);
   }, [openContextMenu]);
 
-  // Заглушки для контекстного меню (в дальнейшем будут реализованы)
-  const handleAddRow = useCallback(() => closeContextMenu(), [closeContextMenu]);
-  const handleDeleteRow = useCallback(() => closeContextMenu(), [closeContextMenu]);
-  const handleAddColumn = useCallback(() => closeContextMenu(), [closeContextMenu]);
-  const handleDeleteColumn = useCallback(() => closeContextMenu(), [closeContextMenu]);
+  const handleAddRow = useCallback(() => {
+    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
+      insertRow(contextMenu.index);
+    } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
+      insertRow(contextMenu.cellPos.row);
+    }
+    closeContextMenu();
+  }, [contextMenu, insertRow, closeContextMenu]);
+
+  const handleDeleteRow = useCallback(() => {
+    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
+      deleteRow(contextMenu.index);
+    } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
+      deleteRow(contextMenu.cellPos.row);
+    }
+    closeContextMenu();
+  }, [contextMenu, deleteRow, closeContextMenu]);
+
+  const handleAddColumn = useCallback(() => {
+    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
+      insertColumn(contextMenu.index);
+    } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
+      insertColumn(contextMenu.cellPos.col);
+    }
+    closeContextMenu();
+  }, [contextMenu, insertColumn, closeContextMenu]);
+
+  const handleDeleteColumn = useCallback(() => {
+    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
+      deleteColumn(contextMenu.index);
+    } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
+      deleteColumn(contextMenu.cellPos.col);
+    }
+    closeContextMenu();
+  }, [contextMenu, deleteColumn, closeContextMenu]);
 
   return (
     <div className="spreadsheet-container">
