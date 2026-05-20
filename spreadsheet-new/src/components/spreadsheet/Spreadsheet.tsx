@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { useSpreadsheetData } from '@/hooks/useSpreadsheetData';
 import { useSelection } from '@/hooks/useSelection';
 import { useEditing } from '@/hooks/useEditing';
@@ -10,15 +10,18 @@ import { FormulaBar } from './FormulaBar';
 import { ContextMenu } from './ContextMenu';
 import '@/styles/spreadsheet.css';
 
-export const Spreadsheet: React.FC = () => {
+interface SpreadsheetProps {
+  documentId: string;
+  onBack: () => void;
+}
+
+export const Spreadsheet: React.FC<SpreadsheetProps> = ({ documentId, onBack }) => {
+  console.log('Spreadsheet mounted with documentId:', documentId);
+
   const {
     updateCell,
     getCellRaw,
     getDisplayValue,
-    insertRow,
-    deleteRow,
-    insertColumn,
-    deleteColumn,
     rows,
     cols,
   } = useSpreadsheetData(DEFAULT_ROWS, DEFAULT_COLS);
@@ -28,132 +31,114 @@ export const Spreadsheet: React.FC = () => {
   const { contextMenu, openContextMenu, closeContextMenu } = useContextMenu();
   const { editingCell, startEdit, stopEdit, inputRef } = useEditing();
 
-  const [formulaValue, setFormulaValue] = useState('');
-
-  const gridKey = `${rows}-${cols}-${JSON.stringify(columnWidths)}-${JSON.stringify(rowHeights)}`;
-
-  useEffect(() => {
-    if (selectedCell && !editingCell) setFormulaValue(getCellRaw(selectedCell));
-  }, [selectedCell, getCellRaw, editingCell]);
-
-  useEffect(() => {
-    if (editingCell && selectedCell) setFormulaValue(getCellRaw(selectedCell));
-  }, [editingCell, selectedCell, getCellRaw]);
-
-  const handleEditCommit = useCallback((row: number, col: number, value: string) => {
+  const handleEditCommit = (row: number, col: number, value: string) => {
     updateCell({ row, col }, value);
     stopEdit();
-  }, [updateCell, stopEdit]);
+  };
 
-  const handleStartEdit = useCallback((row: number, col: number) => startEdit({ row, col }), [startEdit]);
+  const handleStartEdit = (row: number, col: number) => {
+    startEdit({ row, col });
+  };
 
-  const handleSelectCell = useCallback((row: number, col: number, withShift: boolean) => {
+  const handleSelectCell = (row: number, col: number, withShift: boolean) => {
     if (row >= 0 && col >= 0) {
       selectCell({ row, col }, withShift);
       if (editingCell) stopEdit();
     } else {
       clearSelection();
     }
-  }, [selectCell, clearSelection, editingCell, stopEdit]);
+  };
 
-  const handleFormulaChange = (value: string) => setFormulaValue(value);
-  const handleFormulaCommit = useCallback(() => {
-    if (selectedCell) {
-      updateCell(selectedCell, formulaValue);
-      stopEdit();
-    }
-  }, [selectedCell, formulaValue, updateCell, stopEdit]);
-  const handleFormulaCancel = useCallback(() => {
-    if (selectedCell) setFormulaValue(getCellRaw(selectedCell));
-    stopEdit();
-  }, [selectedCell, getCellRaw, stopEdit]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent, type: 'cell' | 'rowHeader' | 'colHeader', index?: number, row?: number, col?: number) => {
+  const handleContextMenu = (e: React.MouseEvent, type: 'cell' | 'rowHeader' | 'colHeader', index?: number, row?: number, col?: number) => {
     openContextMenu(e, type, index, row !== undefined && col !== undefined ? { row, col } : undefined);
-  }, [openContextMenu]);
+  };
 
-  const handleAddRowAbove = useCallback(() => {
-    let target = -1;
-    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) target = contextMenu.index;
-    else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.row;
-    if (target !== -1) insertRow(target);
+  const handleAddRowAbove = () => {
+    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
+      console.log('Add row above', contextMenu.index);
+    }
     closeContextMenu();
-  }, [contextMenu, insertRow, closeContextMenu]);
+  };
 
-  const handleAddRowBelow = useCallback(() => {
-    let target = -1;
-    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) target = contextMenu.index + 1;
-    else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.row + 1;
-    if (target !== -1 && target <= rows) insertRow(target);
+  const handleAddRowBelow = () => {
+    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
+      console.log('Add row below', contextMenu.index + 1);
+    }
     closeContextMenu();
-  }, [contextMenu, insertRow, closeContextMenu, rows]);
+  };
 
-  const handleDeleteRow = useCallback(() => {
-    let target = -1;
-    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) target = contextMenu.index;
-    else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.row;
-    if (target !== -1) deleteRow(target);
+  const handleDeleteRow = () => {
+    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
+      console.log('Delete row', contextMenu.index);
+    }
     closeContextMenu();
-  }, [contextMenu, deleteRow, closeContextMenu]);
+  };
 
-  const handleAddColumnLeft = useCallback(() => {
-    let target = -1;
-    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) target = contextMenu.index;
-    else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.col;
-    if (target !== -1) insertColumn(target);
+  const handleAddColumnLeft = () => {
+    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
+      console.log('Add column left', contextMenu.index);
+    }
     closeContextMenu();
-  }, [contextMenu, insertColumn, closeContextMenu]);
+  };
 
-  const handleAddColumnRight = useCallback(() => {
-    let target = -1;
-    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) target = contextMenu.index + 1;
-    else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.col + 1;
-    if (target !== -1 && target <= cols) insertColumn(target);
+  const handleAddColumnRight = () => {
+    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
+      console.log('Add column right', contextMenu.index + 1);
+    }
     closeContextMenu();
-  }, [contextMenu, insertColumn, closeContextMenu, cols]);
+  };
 
-  const handleDeleteColumn = useCallback(() => {
-    let target = -1;
-    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) target = contextMenu.index;
-    else if (contextMenu.type === 'cell' && contextMenu.cellPos) target = contextMenu.cellPos.col;
-    if (target !== -1) deleteColumn(target);
+  const handleDeleteColumn = () => {
+    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
+      console.log('Delete column', contextMenu.index);
+    }
     closeContextMenu();
-  }, [contextMenu, deleteColumn, closeContextMenu]);
+  };
 
   return (
-    <div className="spreadsheet-container">
-      <FormulaBar value={formulaValue} onChange={handleFormulaChange} onCommit={handleFormulaCommit} onCancel={handleFormulaCancel} />
-      <Grid
-        key={gridKey}
-        rows={rows}
-        cols={cols}
-        columnWidths={columnWidths}
-        rowHeights={rowHeights}
-        selectedCell={selectedCell}
-        selectedRange={selectedRange}
-        editingCell={editingCell}
-        getCellRaw={getCellRaw}
-        getDisplayValue={getDisplayValue}
-        onEditCommit={handleEditCommit}
-        onStartEdit={handleStartEdit}
-        onSelectCell={handleSelectCell}
-        onStartResize={startResize}
-        onContextMenu={handleContextMenu}
-      />
-      {contextMenu.visible && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          type={contextMenu.type}
-          onAddRowAbove={handleAddRowAbove}
-          onAddRowBelow={handleAddRowBelow}
-          onDeleteRow={handleDeleteRow}
-          onAddColumnLeft={handleAddColumnLeft}
-          onAddColumnRight={handleAddColumnRight}
-          onDeleteColumn={handleDeleteColumn}
-          onClose={closeContextMenu}
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '8px', background: '#f0f0f0', display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <button onClick={onBack}>← Назад</button>
+        <span>Документ: {documentId}</span>
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <FormulaBar
+          value=""
+          onChange={() => {}}
+          onCommit={() => {}}
+          onCancel={() => {}}
         />
-      )}
+        <Grid
+          rows={rows}
+          cols={cols}
+          columnWidths={columnWidths}
+          rowHeights={rowHeights}
+          selectedCell={selectedCell}
+          selectedRange={selectedRange}
+          editingCell={editingCell}
+          getCellRaw={getCellRaw}
+          getDisplayValue={getDisplayValue}
+          onEditCommit={handleEditCommit}
+          onStartEdit={handleStartEdit}
+          onSelectCell={handleSelectCell}
+          onStartResize={startResize}
+          onContextMenu={handleContextMenu}
+        />
+        {contextMenu.visible && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            type={contextMenu.type}
+            onAddRowAbove={handleAddRowAbove}
+            onAddRowBelow={handleAddRowBelow}
+            onDeleteRow={handleDeleteRow}
+            onAddColumnLeft={handleAddColumnLeft}
+            onAddColumnRight={handleAddColumnRight}
+            onDeleteColumn={handleDeleteColumn}
+            onClose={closeContextMenu}
+          />
+        )}
+      </div>
     </div>
   );
 };

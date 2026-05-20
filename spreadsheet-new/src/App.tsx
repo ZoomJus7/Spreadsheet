@@ -1,12 +1,15 @@
-import { Spreadsheet } from '@/components/spreadsheet/Spreadsheet';
-import '@/styles/spreadsheet.css';
+import React, { useState } from 'react';
+import { Dashboard } from './components/dashboard/Dashboard';
+import { Spreadsheet } from './components/spreadsheet/Spreadsheet';
 
 function App() {
-  return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Spreadsheet />
-    </div>
-  );
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+
+  if (currentDocId) {
+    return <Spreadsheet documentId={currentDocId} onBack={() => setCurrentDocId(null)} />;
+  }
+
+  return <Dashboard onSelectDocument={setCurrentDocId} />;
 }
 
 export default App;
