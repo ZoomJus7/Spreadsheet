@@ -1,5 +1,4 @@
-import React, { useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { FixedSizeGrid as ReactWindowGrid } from 'react-window';
+import React, { useRef, useEffect, useLayoutEffect } from 'react';
 import { Cell } from './Cell';
 import { RowHeader } from './RowHeader';
 import { ColHeader } from './ColHeader';
@@ -39,106 +38,101 @@ export const Grid: React.FC<GridProps> = ({
   onStartResize,
   onContextMenu,
 }) => {
-  const gridRef = useRef<ReactWindowGrid>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const colHeaderRef = useRef<HTMLDivElement | null>(null);
   const rowHeaderRef = useRef<HTMLDivElement | null>(null);
-  const scrollLeftRef = useRef(0);
-  const scrollTopRef = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [containerSize, setContainerSize] = React.useState({ width: 800, height: 600 });
 
-  const columnWidth = DEFAULT_COLUMN_WIDTH;
-  const rowHeight = DEFAULT_ROW_HEIGHT;
+  const getColumnWidth = (index: number): number => columnWidths[index] ?? DEFAULT_COLUMN_WIDTH;
+  const getRowHeight = (index: number): number => rowHeights[index] ?? DEFAULT_ROW_HEIGHT;
 
-  useLayoutEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setContainerSize({ width: Math.max(rect.width, 100), height: Math.max(rect.height, 100) });
-      }
-    };
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    const observer = new ResizeObserver(updateSize);
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => {
-      window.removeEventListener('resize', updateSize);
-      observer.disconnect();
-    };
-  }, []);
+  // Вычисление общей ширины и высоты
+  let totalWidth = 0;
+  for (let i = 0; i < cols; i++) totalWidth += getColumnWidth(i);
+  let totalHeight = 0;
+  for (let i = 0; i < rows; i++) totalHeight += getRowHeight(i);
 
-  const handleScroll = useCallback(({ scrollLeft, scrollTop }: { scrollLeft: number; scrollTop: number }) => {
-    scrollLeftRef.current = scrollLeft;
-    scrollTopRef.current = scrollTop;
+  // Предварительный расчёт позиций строк и столбцов
+  const rowTops: number[] = [];
+  let currentTop = 0;
+  for (let i = 0; i < rows; i++) {
+    rowTops.push(currentTop);
+    currentTop += getRowHeight(i);
+  }
+
+  const colLefts: number[] = [];
+  let currentLeft = 0;
+  for (let i = 0; i < cols; i++) {
+    colLefts.push(currentLeft);
+    currentLeft += getColumnWidth(i);
+  }
+
+  // Обработчик прокрутки тела таблицы
+  const handleBodyScroll = () => {
+    if (!bodyRef.current) return;
+    const scrollLeft = bodyRef.current.scrollLeft;
+    const scrollTop = bodyRef.current.scrollTop;
     if (colHeaderRef.current) colHeaderRef.current.scrollLeft = scrollLeft;
     if (rowHeaderRef.current) rowHeaderRef.current.scrollTop = scrollTop;
-  }, []);
+  };
 
-  const handleColHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const left = e.currentTarget.scrollLeft;
-    scrollLeftRef.current = left;
-    if (gridRef.current) {
-      gridRef.current.scrollTo({ scrollLeft: left, scrollTop: scrollTopRef.current });
-    }
-  }, []);
+  // Обработчик прокрутки заголовка столбцов
+  const handleColHeaderScroll = () => {
+    if (!colHeaderRef.current || !bodyRef.current) return;
+    bodyRef.current.scrollLeft = colHeaderRef.current.scrollLeft;
+  };
 
-  const handleRowHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const top = e.currentTarget.scrollTop;
-    scrollTopRef.current = top;
-    if (gridRef.current) {
-      gridRef.current.scrollTo({ scrollLeft: scrollLeftRef.current, scrollTop: top });
-    }
-  }, []);
+  // Обработчик прокрутки заголовка строк
+  const handleRowHeaderScroll = () => {
+    if (!rowHeaderRef.current || !bodyRef.current) return;
+    bodyRef.current.scrollTop = rowHeaderRef.current.scrollTop;
+  };
 
+  // Инициализация ссылок и навешивание обработчиков после монтирования
   useEffect(() => {
     colHeaderRef.current = document.querySelector('.col-headers');
     rowHeaderRef.current = document.querySelector('.row-headers');
+    
     const colElem = colHeaderRef.current;
     const rowElem = rowHeaderRef.current;
+    const bodyElem = bodyRef.current;
+
     if (colElem) {
-      colElem.addEventListener('scroll', handleColHeaderScroll as any);
+      colElem.addEventListener('scroll', handleColHeaderScroll);
     }
     if (rowElem) {
-      rowElem.addEventListener('scroll', handleRowHeaderScroll as any);
+      rowElem.addEventListener('scroll', handleRowHeaderScroll);
     }
+    if (bodyElem) {
+      bodyElem.addEventListener('scroll', handleBodyScroll);
+    }
+
+    // Синхронизация начальных положений
+    if (bodyElem && colElem) {
+      colElem.scrollLeft = bodyElem.scrollLeft;
+    }
+    if (bodyElem && rowElem) {
+      rowElem.scrollTop = bodyElem.scrollTop;
+    }
+
     return () => {
-      if (colElem) colElem.removeEventListener('scroll', handleColHeaderScroll as any);
-      if (rowElem) rowElem.removeEventListener('scroll', handleRowHeaderScroll as any);
+      if (colElem) colElem.removeEventListener('scroll', handleColHeaderScroll);
+      if (rowElem) rowElem.removeEventListener('scroll', handleRowHeaderScroll);
+      if (bodyElem) bodyElem.removeEventListener('scroll', handleBodyScroll);
     };
-  }, [handleColHeaderScroll, handleRowHeaderScroll]);
+  }, []);
 
-  const CellRenderer = useCallback(
-    ({ columnIndex, rowIndex, style }: { columnIndex: number; rowIndex: number; style: React.CSSProperties }) => {
-      const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === columnIndex;
-      const isInRange = selectedRange
-        ? rowIndex >= selectedRange.start.row && rowIndex <= selectedRange.end.row &&
-          columnIndex >= selectedRange.start.col && columnIndex <= selectedRange.end.col
-        : false;
-      const isEditing = editingCell?.row === rowIndex && editingCell?.col === columnIndex;
-      const value = getDisplayValue({ row: rowIndex, col: columnIndex });
-      const initialValue = getCellRaw({ row: rowIndex, col: columnIndex });
-
-      return (
-        <Cell
-          row={rowIndex}
-          col={columnIndex}
-          value={value}
-          isSelected={isSelected}
-          isInRange={isInRange}
-          isEditing={isEditing}
-          initialValue={initialValue}
-          onCommit={onEditCommit}
-          onSelect={onSelectCell}
-          onStartEdit={onStartEdit}
-          style={style}
-        />
-      );
-    },
-    [selectedCell, selectedRange, editingCell, getDisplayValue, getCellRaw, onEditCommit, onSelectCell, onStartEdit]
-  );
+  // Синхронизация при изменении размеров столбцов/строк
+  useLayoutEffect(() => {
+    if (bodyRef.current && colHeaderRef.current) {
+      colHeaderRef.current.scrollLeft = bodyRef.current.scrollLeft;
+    }
+    if (bodyRef.current && rowHeaderRef.current) {
+      rowHeaderRef.current.scrollTop = bodyRef.current.scrollTop;
+    }
+  }, [columnWidths, rowHeights]);
 
   return (
-    <div className="spreadsheet-grid" style={{ height: '100%', width: '100%' }}>
+    <div className="spreadsheet-grid">
       <div className="top-left-corner" />
       <ColHeader
         cols={cols}
@@ -152,19 +146,50 @@ export const Grid: React.FC<GridProps> = ({
         onStartResize={onStartResize}
         onContextMenu={(e, rowIndex) => onContextMenu(e, 'rowHeader', rowIndex)}
       />
-      <div ref={containerRef} className="grid-body" style={{ width: '100%', height: '100%' }}>
-        <ReactWindowGrid
-          ref={gridRef}
-          columnCount={cols}
-          columnWidth={columnWidth}
-          height={containerSize.height}
-          rowCount={rows}
-          rowHeight={rowHeight}
-          width={containerSize.width}
-          onScroll={handleScroll}
-        >
-          {CellRenderer}
-        </ReactWindowGrid>
+      <div
+        ref={bodyRef}
+        className="grid-body"
+        style={{ overflow: 'auto', position: 'relative' }}
+      >
+        <div style={{ width: totalWidth, height: totalHeight, position: 'relative' }}>
+          {Array.from({ length: rows }).map((_, rowIndex) => {
+            const rowHeight = getRowHeight(rowIndex);
+            const rowTop = rowTops[rowIndex];
+            return (
+              <div key={rowIndex} style={{ position: 'absolute', top: rowTop, height: rowHeight, width: '100%' }}>
+                {Array.from({ length: cols }).map((_, colIndex) => {
+                  const colWidth = getColumnWidth(colIndex);
+                  const colLeft = colLefts[colIndex];
+                  const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+                  const isInRange = selectedRange
+                    ? rowIndex >= selectedRange.start.row && rowIndex <= selectedRange.end.row &&
+                      colIndex >= selectedRange.start.col && colIndex <= selectedRange.end.col
+                    : false;
+                  const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
+                  const value = getDisplayValue({ row: rowIndex, col: colIndex });
+                  const initialValue = getCellRaw({ row: rowIndex, col: colIndex });
+
+                  return (
+                    <Cell
+                      key={`${rowIndex}-${colIndex}`}
+                      row={rowIndex}
+                      col={colIndex}
+                      value={value}
+                      isSelected={isSelected}
+                      isInRange={isInRange}
+                      isEditing={isEditing}
+                      initialValue={initialValue}
+                      onCommit={onEditCommit}
+                      onSelect={onSelectCell}
+                      onStartEdit={onStartEdit}
+                      style={{ position: 'absolute', left: colLeft, width: colWidth, height: rowHeight }}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
