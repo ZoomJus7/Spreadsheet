@@ -1,0 +1,5 @@
+export const DEFAULT_ROWS = 100;
+export const DEFAULT_COLS = 26;
+export const DEFAULT_COLUMN_WIDTH = 100;
+export const DEFAULT_ROW_HEIGHT = 25;
+export const COLUMN_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
