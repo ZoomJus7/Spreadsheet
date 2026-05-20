@@ -1,5 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { VariableSizeGrid as ReactWindowGrid } from 'react-window';
+import React, { useRef, useEffect, useLayoutEffect } from 'react';
 import { Cell } from './Cell';
 import { RowHeader } from './RowHeader';
 import { ColHeader } from './ColHeader';
@@ -39,44 +38,48 @@ export const Grid: React.FC<GridProps> = ({
   onStartResize,
   onContextMenu,
 }) => {
-  const gridRef = useRef<ReactWindowGrid>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const colHeaderRef = useRef<HTMLDivElement | null>(null);
   const rowHeaderRef = useRef<HTMLDivElement | null>(null);
-  const scrollLeftRef = useRef(0);
-  const scrollTopRef = useRef(0);
 
-  const getColumnWidth = useCallback((index: number) => columnWidths[index] ?? DEFAULT_COLUMN_WIDTH, [columnWidths]);
-  const getRowHeight = useCallback((index: number) => rowHeights[index] ?? DEFAULT_ROW_HEIGHT, [rowHeights]);
+  const getColumnWidth = (index: number): number => columnWidths[index] ?? DEFAULT_COLUMN_WIDTH;
+  const getRowHeight = (index: number): number => rowHeights[index] ?? DEFAULT_ROW_HEIGHT;
 
-  useEffect(() => {
-    if (gridRef.current) {
-      gridRef.current.resetAfterColumnIndex(0);
-      gridRef.current.resetAfterRowIndex(0);
-    }
-  }, [columnWidths, rowHeights]);
+  // Общая ширина и высота
+  let totalWidth = 0;
+  for (let i = 0; i < cols; i++) totalWidth += getColumnWidth(i);
+  let totalHeight = 0;
+  for (let i = 0; i < rows; i++) totalHeight += getRowHeight(i);
 
-  const handleScroll = useCallback(({ scrollLeft, scrollTop }: { scrollLeft: number; scrollTop: number }) => {
-    scrollLeftRef.current = scrollLeft;
-    scrollTopRef.current = scrollTop;
+  // Предварительный расчёт позиций строк и столбцов
+  const rowTops: number[] = [];
+  let currentTop = 0;
+  for (let i = 0; i < rows; i++) {
+    rowTops.push(currentTop);
+    currentTop += getRowHeight(i);
+  }
+
+  const colLefts: number[] = [];
+  let currentLeft = 0;
+  for (let i = 0; i < cols; i++) {
+    colLefts.push(currentLeft);
+    currentLeft += getColumnWidth(i);
+  }
+
+  const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const scrollTop = e.currentTarget.scrollTop;
     if (colHeaderRef.current) colHeaderRef.current.scrollLeft = scrollLeft;
     if (rowHeaderRef.current) rowHeaderRef.current.scrollTop = scrollTop;
-  }, []);
+  };
 
-  const handleColHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const left = e.currentTarget.scrollLeft;
-    scrollLeftRef.current = left;
-    if (gridRef.current) {
-      gridRef.current.scrollTo({ scrollLeft: left, scrollTop: scrollTopRef.current });
-    }
-  }, []);
+  const handleColHeaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (bodyRef.current) bodyRef.current.scrollLeft = e.currentTarget.scrollLeft;
+  };
 
-  const handleRowHeaderScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const top = e.currentTarget.scrollTop;
-    scrollTopRef.current = top;
-    if (gridRef.current) {
-      gridRef.current.scrollTo({ scrollLeft: scrollLeftRef.current, scrollTop: top });
-    }
-  }, []);
+  const handleRowHeaderScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (bodyRef.current) bodyRef.current.scrollTop = e.currentTarget.scrollTop;
+  };
 
   useEffect(() => {
     colHeaderRef.current = document.querySelector('.col-headers');
@@ -89,37 +92,16 @@ export const Grid: React.FC<GridProps> = ({
       if (colElem) colElem.removeEventListener('scroll', handleColHeaderScroll as any);
       if (rowElem) rowElem.removeEventListener('scroll', handleRowHeaderScroll as any);
     };
-  }, [handleColHeaderScroll, handleRowHeaderScroll]);
+  }, []);
 
-  const CellRenderer = useCallback(
-    ({ columnIndex, rowIndex, style }: { columnIndex: number; rowIndex: number; style: React.CSSProperties }) => {
-      const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === columnIndex;
-      const isInRange = selectedRange
-        ? rowIndex >= selectedRange.start.row && rowIndex <= selectedRange.end.row &&
-          columnIndex >= selectedRange.start.col && columnIndex <= selectedRange.end.col
-        : false;
-      const isEditing = editingCell?.row === rowIndex && editingCell?.col === columnIndex;
-      const value = getDisplayValue({ row: rowIndex, col: columnIndex });
-      const initialValue = getCellRaw({ row: rowIndex, col: columnIndex });
-
-      return (
-        <Cell
-          row={rowIndex}
-          col={columnIndex}
-          value={value}
-          isSelected={isSelected}
-          isInRange={isInRange}
-          isEditing={isEditing}
-          initialValue={initialValue}
-          onCommit={onEditCommit}
-          onSelect={onSelectCell}
-          onStartEdit={onStartEdit}
-          style={style}
-        />
-      );
-    },
-    [selectedCell, selectedRange, editingCell, getDisplayValue, getCellRaw, onEditCommit, onSelectCell, onStartEdit]
-  );
+  useLayoutEffect(() => {
+    if (bodyRef.current && colHeaderRef.current) {
+      colHeaderRef.current.scrollLeft = bodyRef.current.scrollLeft;
+    }
+    if (bodyRef.current && rowHeaderRef.current) {
+      rowHeaderRef.current.scrollTop = bodyRef.current.scrollTop;
+    }
+  }, [columnWidths, rowHeights]);
 
   return (
     <div className="spreadsheet-grid">
@@ -136,19 +118,46 @@ export const Grid: React.FC<GridProps> = ({
         onStartResize={onStartResize}
         onContextMenu={(e, rowIndex) => onContextMenu(e, 'rowHeader', rowIndex)}
       />
-      <div className="grid-body">
-        <ReactWindowGrid
-          ref={gridRef}
-          columnCount={cols}
-          columnWidth={getColumnWidth}
-          height={600}
-          rowCount={rows}
-          rowHeight={getRowHeight}
-          width={800}
-          onScroll={handleScroll}
-        >
-          {CellRenderer}
-        </ReactWindowGrid>
+      <div ref={bodyRef} className="grid-body" onScroll={handleBodyScroll} style={{ overflow: 'auto', position: 'relative' }}>
+        <div style={{ width: totalWidth, height: totalHeight, position: 'relative' }}>
+          {Array.from({ length: rows }).map((_, rowIndex) => {
+            const rowHeight = getRowHeight(rowIndex);
+            const rowTop = rowTops[rowIndex];
+            return (
+              <div key={rowIndex} style={{ position: 'absolute', top: rowTop, height: rowHeight, width: '100%' }}>
+                {Array.from({ length: cols }).map((_, colIndex) => {
+                  const colWidth = getColumnWidth(colIndex);
+                  const colLeft = colLefts[colIndex];
+                  const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex;
+                  const isInRange = selectedRange
+                    ? rowIndex >= selectedRange.start.row && rowIndex <= selectedRange.end.row &&
+                      colIndex >= selectedRange.start.col && colIndex <= selectedRange.end.col
+                    : false;
+                  const isEditing = editingCell?.row === rowIndex && editingCell?.col === colIndex;
+                  const value = getDisplayValue({ row: rowIndex, col: colIndex });
+                  const initialValue = getCellRaw({ row: rowIndex, col: colIndex });
+
+                  return (
+                    <Cell
+                      key={`${rowIndex}-${colIndex}`}
+                      row={rowIndex}
+                      col={colIndex}
+                      value={value}
+                      isSelected={isSelected}
+                      isInRange={isInRange}
+                      isEditing={isEditing}
+                      initialValue={initialValue}
+                      onCommit={onEditCommit}
+                      onSelect={onSelectCell}
+                      onStartEdit={onStartEdit}
+                      style={{ position: 'absolute', left: colLeft, width: colWidth, height: rowHeight }}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

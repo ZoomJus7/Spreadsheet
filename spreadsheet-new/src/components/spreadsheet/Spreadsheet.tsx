@@ -30,6 +30,8 @@ export const Spreadsheet: React.FC = () => {
 
   const [formulaValue, setFormulaValue] = useState('');
 
+  const gridKey = `${rows}-${cols}-${JSON.stringify(columnWidths)}-${JSON.stringify(rowHeights)}`;
+
   useEffect(() => {
     if (selectedCell && !editingCell) setFormulaValue(getCellRaw(selectedCell));
   }, [selectedCell, getCellRaw, editingCell]);
@@ -122,7 +124,7 @@ export const Spreadsheet: React.FC = () => {
     <div className="spreadsheet-container">
       <FormulaBar value={formulaValue} onChange={handleFormulaChange} onCommit={handleFormulaCommit} onCancel={handleFormulaCancel} />
       <Grid
-        key={`${rows}-${cols}`}
+        key={gridKey}
         rows={rows}
         cols={cols}
         columnWidths={columnWidths}

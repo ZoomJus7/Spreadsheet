@@ -42,8 +42,6 @@ export const Cell: React.FC<CellProps> = memo(({
       onCommit(row, col, inputRef.current?.value || '');
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      // отмена редактирования – просто закрываем, без сохранения
-      // и вызываем onSelect, чтобы снять фокус
       onSelect(row, col, false);
     }
   };
