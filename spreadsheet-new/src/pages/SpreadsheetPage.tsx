@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Spreadsheet } from '@/components/spreadsheet/Spreadsheet';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { clearCurrentDocument, fetchDocumentById } from '@/store/slices/documentsSlice';
+import { fetchDocumentById, clearCurrentDocument } from '@/store/slices/documentsSlice';
+import { Spreadsheet } from '@/components/spreadsheet/Spreadsheet';
 
 const SpreadsheetPage: React.FC = () => {
   const { documentId } = useParams<{ documentId: string }>();
@@ -11,53 +11,47 @@ const SpreadsheetPage: React.FC = () => {
   
   const { currentDocument, loading } = useAppSelector((state) => state.documents);
   const { user } = useAppSelector((state) => state.auth);
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
-    if (documentId) {
+    if (documentId && !hasFetched) {
+      setHasFetched(true);
       dispatch(fetchDocumentById(documentId));
     }
-  }, [dispatch, documentId]);
+  }, [documentId, dispatch, hasFetched]);
 
-  // Проверка доступа к документу
   useEffect(() => {
-    if (!loading && currentDocument) {
-      // Проверяем, принадлежит ли документ текущему пользователю
-      if (currentDocument.userId !== user?.id) {
-        alert('У вас нет доступа к этому документу');
-        navigate('/dashboard');
-      }
+    if (!loading && !currentDocument && documentId && hasFetched) {
+      navigate('/404', { replace: true });
+    }
+  }, [loading, currentDocument, documentId, navigate, hasFetched]);
+
+  useEffect(() => {
+    if (!loading && currentDocument && user && currentDocument.userId !== user.id) {
+      alert('У вас нет доступа к этому документу');
+      navigate('/dashboard', { replace: true });
     }
   }, [loading, currentDocument, user, navigate]);
 
-  useEffect(() => {
-    if (!loading && !currentDocument && documentId) {
-      navigate('/404');
-    }
-  }, [loading, currentDocument, documentId, navigate]);
-
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     dispatch(clearCurrentDocument());
-    navigate('/dashboard');
-  };
-
-  if (!documentId) {
-    return <div style={{ padding: 20 }}>Документ не найден</div>;
-  }
+    setTimeout(() => {
+      navigate('/dashboard', { replace: true });
+    }, 50);
+  }, [dispatch, navigate]);
 
   if (loading) {
     return <div style={{ padding: 20 }}>Загрузка документа...</div>;
   }
 
-  if (!currentDocument) {
+  if (!currentDocument || !documentId) {
     return <div style={{ padding: 20 }}>Документ не найден</div>;
   }
 
-  // Проверка userId
-  if (currentDocument.userId !== user?.id) {
+  if (user && currentDocument.userId !== user.id) {
     return <div style={{ padding: 20 }}>Доступ запрещён</div>;
   }
 
-  // Преобразуем cells из Record в Map
   const cellsMap = new Map();
   Object.entries(currentDocument.cells).forEach(([key, value]) => {
     cellsMap.set(key, value);

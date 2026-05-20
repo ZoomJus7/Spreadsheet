@@ -7,11 +7,9 @@ const generateId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 };
 
-// Получение текущего пользователя из localStorage
 const getCurrentUserId = (): string | null => {
   const token = localStorage.getItem('spreadsheet_access_token');
   if (!token) return null;
-  // Извлекаем userId из токена (mock_jwt_{userId}_...)
   const parts = token.split('_');
   if (parts.length >= 3 && parts[0] === 'mock' && parts[1] === 'jwt') {
     return parts[2];
@@ -29,7 +27,28 @@ const saveAll = (docs: Document[]): void => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
 };
 
-// Получение документов только текущего пользователя
+const migrateDocuments = () => {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (!data) return;
+  
+  const docs: Document[] = JSON.parse(data);
+  let needsUpdate = false;
+  
+  const updatedDocs = docs.map(doc => {
+    if (!doc.userId) {
+      needsUpdate = true;
+      return { ...doc, userId: '1' };
+    }
+    return doc;
+  });
+  
+  if (needsUpdate) {
+    saveAll(updatedDocs);
+  }
+};
+
+migrateDocuments();
+
 export const getDocuments = async (): Promise<DocumentMeta[]> => {
   await new Promise(resolve => setTimeout(resolve, 300));
   const userId = getCurrentUserId();

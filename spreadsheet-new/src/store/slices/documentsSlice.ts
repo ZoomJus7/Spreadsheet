@@ -20,9 +20,20 @@ export const fetchDocuments = createAsyncThunk('documents/fetchDocuments', async
   return await getDocuments();
 });
 
-export const fetchDocumentById = createAsyncThunk('documents/fetchDocumentById', async (id: string) => {
-  return await getDocumentById(id);
-});
+export const fetchDocumentById = createAsyncThunk(
+  'documents/fetchDocumentById',
+  async (id: string, { rejectWithValue }) => {
+    try {
+      const doc = await getDocumentById(id);
+      if (!doc) {
+        return rejectWithValue('Document not found');
+      }
+      return doc;
+    } catch (error) {
+      return rejectWithValue('Error loading document');
+    }
+  }
+);
 
 export const createNewDocument = createAsyncThunk(
   'documents/createNewDocument',
@@ -81,14 +92,16 @@ const documentsSlice = createSlice({
       .addCase(fetchDocumentById.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.currentDocument = null;
       })
       .addCase(fetchDocumentById.fulfilled, (state, action) => {
         state.loading = false;
         state.currentDocument = action.payload;
       })
-      .addCase(fetchDocumentById.rejected, (state) => {
+      .addCase(fetchDocumentById.rejected, (state, action) => {
         state.loading = false;
-        state.error = 'Ошибка загрузки документа';
+        state.currentDocument = null;
+        state.error = action.payload as string || 'Ошибка загрузки документа';
       })
       .addCase(createNewDocument.fulfilled, (state, action) => {
         state.list.push({
