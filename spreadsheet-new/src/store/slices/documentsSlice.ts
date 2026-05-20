@@ -66,7 +66,6 @@ const documentsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // fetchDocuments
       .addCase(fetchDocuments.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -79,7 +78,6 @@ const documentsSlice = createSlice({
         state.loading = false;
         state.error = 'Ошибка загрузки документов';
       })
-      // fetchDocumentById
       .addCase(fetchDocumentById.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -92,7 +90,6 @@ const documentsSlice = createSlice({
         state.loading = false;
         state.error = 'Ошибка загрузки документа';
       })
-      // createNewDocument
       .addCase(createNewDocument.fulfilled, (state, action) => {
         state.list.push({
           id: action.payload.id,
@@ -104,19 +101,16 @@ const documentsSlice = createSlice({
         });
         state.currentDocument = action.payload;
       })
-      // renameDocument
       .addCase(renameDocument.fulfilled, (state, action) => {
         const { id, newName } = action.payload;
         const doc = state.list.find(d => d.id === id);
         if (doc) doc.name = newName;
         if (state.currentDocument?.id === id) state.currentDocument.name = newName;
       })
-      // deleteDocumentThunk
       .addCase(deleteDocumentThunk.fulfilled, (state, action) => {
         state.list = state.list.filter(d => d.id !== action.payload);
         if (state.currentDocument?.id === action.payload) state.currentDocument = null;
       })
-      // duplicateDocumentThunk
       .addCase(duplicateDocumentThunk.fulfilled, (state, action) => {
         state.list.push({
           id: action.payload.id,

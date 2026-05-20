@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Spreadsheet } from '@/components/spreadsheet/Spreadsheet';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -10,12 +10,24 @@ const SpreadsheetPage: React.FC = () => {
   const dispatch = useAppDispatch();
   
   const { currentDocument, loading } = useAppSelector((state) => state.documents);
+  const { user } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     if (documentId) {
       dispatch(fetchDocumentById(documentId));
     }
   }, [dispatch, documentId]);
+
+  // Проверка доступа к документу
+  useEffect(() => {
+    if (!loading && currentDocument) {
+      // Проверяем, принадлежит ли документ текущему пользователю
+      if (currentDocument.userId !== user?.id) {
+        alert('У вас нет доступа к этому документу');
+        navigate('/dashboard');
+      }
+    }
+  }, [loading, currentDocument, user, navigate]);
 
   useEffect(() => {
     if (!loading && !currentDocument && documentId) {
@@ -38,6 +50,11 @@ const SpreadsheetPage: React.FC = () => {
 
   if (!currentDocument) {
     return <div style={{ padding: 20 }}>Документ не найден</div>;
+  }
+
+  // Проверка userId
+  if (currentDocument.userId !== user?.id) {
+    return <div style={{ padding: 20 }}>Доступ запрещён</div>;
   }
 
   // Преобразуем cells из Record в Map

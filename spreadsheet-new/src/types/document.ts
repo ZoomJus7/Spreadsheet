@@ -3,6 +3,7 @@ import type { CellData } from './spreadsheet';
 export interface Document {
   id: string;
   name: string;
+  userId: string;
   createdAt: number;
   updatedAt: number;
   rows: number;
