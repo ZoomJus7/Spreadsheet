@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
-import { useDispatch } from 'react-redux';
 import { undo, redo } from './store/slices/spreadsheetSlice';
+import { fetchDocumentById, clearCurrentDocument } from './store/slices/documentsSlice';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { Spreadsheet } from './components/spreadsheet/Spreadsheet';
-import { useAppSelector } from './store/hooks';
+import { useAppSelector, useAppDispatch } from './store/hooks';
 
 function App() {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const currentDocument = useAppSelector((state) => state.documents.currentDocument);
 
   useEffect(() => {
@@ -24,13 +24,13 @@ function App() {
   }, [dispatch]);
 
   const handleSelectDocument = (id: string) => {
-    // Здесь нужно будет установить активный документ
-    console.log('Selected document:', id);
+    console.log('Opening document:', id);
+    dispatch(fetchDocumentById(id));
   };
 
   const handleBack = () => {
-    // Здесь нужно будет очистить активный документ
     console.log('Back to dashboard');
+    dispatch(clearCurrentDocument());
   };
 
   if (currentDocument) {

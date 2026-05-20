@@ -80,8 +80,17 @@ const documentsSlice = createSlice({
         state.error = 'Ошибка загрузки документов';
       })
       // fetchDocumentById
+      .addCase(fetchDocumentById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
       .addCase(fetchDocumentById.fulfilled, (state, action) => {
+        state.loading = false;
         state.currentDocument = action.payload;
+      })
+      .addCase(fetchDocumentById.rejected, (state) => {
+        state.loading = false;
+        state.error = 'Ошибка загрузки документа';
       })
       // createNewDocument
       .addCase(createNewDocument.fulfilled, (state, action) => {
