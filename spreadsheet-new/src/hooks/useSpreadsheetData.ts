@@ -10,45 +10,59 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
   const [rows, setRows] = useState(initialRows);
   const [cols, setCols] = useState(initialCols);
 
-  const getCellValueByRef = useCallback((ref: string): CellValue => {
-    const cell = cells.get(ref);
+  // Функция для получения значения ячейки по ссылке (использует текущее состояние)
+  // Она будет вызываться внутри updateCell с актуальным состоянием
+  const getCellValueByRef = useCallback((cellsMap: Map<string, CellData>, ref: string): CellValue => {
+    const cell = cellsMap.get(ref);
     if (!cell) return '';
     return cell.computed;
-  }, [cells]);
+  }, []);
 
-  const evaluateAllFormulas = useCallback(() => {
-    setCells(prevCells => {
-      const newCells = new Map(prevCells);
-      let changed = false;
-      for (const [ref, cell] of newCells.entries()) {
-        if (cell.type === 'formula') {
-          const result = evaluateFormula(cell.raw, getCellValueByRef);
-          const newComputed = result.error ? `#ERROR: ${result.error}` : (result.result ?? '');
-          if (newComputed !== cell.computed) {
-            newCells.set(ref, { ...cell, computed: newComputed });
-            changed = true;
-          }
+  // Пересчёт всех формул в карте ячеек
+  const recomputeFormulas = useCallback((cellsMap: Map<string, CellData>): Map<string, CellData> => {
+    const newCells = new Map(cellsMap);
+    let changed = false;
+    for (const [ref, cell] of newCells.entries()) {
+      if (cell.type === 'formula') {
+        const result = evaluateFormula(cell.raw, (r) => getCellValueByRef(newCells, r));
+        const newComputed = result.error ? `#ERROR: ${result.error}` : (result.result ?? '');
+        if (newComputed !== cell.computed) {
+          newCells.set(ref, { ...cell, computed: newComputed });
+          changed = true;
         }
       }
-      return changed ? newCells : prevCells;
-    });
+    }
+    return changed ? newCells : cellsMap;
   }, [getCellValueByRef]);
 
   const updateCell = useCallback((pos: CellPosition, rawValue: string) => {
+    if (pos.row < 0 || pos.row >= rows || pos.col < 0 || pos.col >= cols) return;
     const ref = indexToCell(pos.row, pos.col);
     const type = detectType(rawValue);
     let computed: CellValue;
+    // Сначала создаём временную карту с обновлённой ячейкой
+    let newCell: CellData;
     if (type === 'formula') {
-      const result = evaluateFormula(rawValue, getCellValueByRef);
-      computed = result.error ? `#ERROR: ${result.error}` : (result.result ?? '');
+      // Для формулы вычислить сразу, но зависимости могут быть не готовы – сначала запишем raw, потом пересчитаем
+      newCell = { raw: rawValue, computed: rawValue, type };
     } else {
       computed = parseValue(rawValue, type);
+      newCell = { raw: rawValue, computed, type };
     }
-    const newCell: CellData = { raw: rawValue, computed, type };
-    setCells(prev => new Map(prev).set(ref, newCell));
-    setTimeout(() => evaluateAllFormulas(), 0);
-  }, [getCellValueByRef, evaluateAllFormulas]);
+    setCells(prev => {
+      const updatedMap = new Map(prev);
+      updatedMap.set(ref, newCell);
+      // Если это формула, нужно пересчитать все формулы после её добавления
+      if (type === 'formula') {
+        return recomputeFormulas(updatedMap);
+      } else {
+        // Для не-формул тоже пересчитать все формулы (так как они могли зависеть от изменённой ячейки)
+        return recomputeFormulas(updatedMap);
+      }
+    });
+  }, [rows, cols, recomputeFormulas]);
 
+  // Остальные функции (insertRow, deleteRow и т.д.) должны также использовать recomputeFormulas
   const getCell = useCallback((pos: CellPosition): CellData | undefined => {
     if (pos.row < 0 || pos.row >= rows || pos.col < 0 || pos.col >= cols) return undefined;
     const ref = indexToCell(pos.row, pos.col);
@@ -62,7 +76,7 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
     return cell ? String(cell.computed) : '';
   }, [getCell]);
 
-  // Вставка строки выше указанного индекса
+  // Вставка строки
   const insertRow = useCallback((beforeRow: number) => {
     if (beforeRow < 0 || beforeRow > rows) return;
     setRows(prev => prev + 1);
@@ -77,12 +91,11 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
         const newRef = indexToCell(newRow, pos.col);
         newMap.set(newRef, cell);
       }
-      return newMap;
+      // После сдвига строк пересчитать формулы
+      return recomputeFormulas(newMap);
     });
-    setTimeout(() => evaluateAllFormulas(), 0);
-  }, [rows, evaluateAllFormulas]);
+  }, [rows, recomputeFormulas]);
 
-  // Удаление строки по индексу
   const deleteRow = useCallback((rowIndex: number) => {
     if (rowIndex < 0 || rowIndex >= rows) return;
     setRows(prev => prev - 1);
@@ -98,12 +111,10 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
         const newRef = indexToCell(newRow, pos.col);
         newMap.set(newRef, cell);
       }
-      return newMap;
+      return recomputeFormulas(newMap);
     });
-    setTimeout(() => evaluateAllFormulas(), 0);
-  }, [rows, evaluateAllFormulas]);
+  }, [rows, recomputeFormulas]);
 
-  // Вставка столбца левее указанного индекса
   const insertColumn = useCallback((beforeCol: number) => {
     if (beforeCol < 0 || beforeCol > cols) return;
     setCols(prev => prev + 1);
@@ -118,12 +129,10 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
         const newRef = indexToCell(pos.row, newCol);
         newMap.set(newRef, cell);
       }
-      return newMap;
+      return recomputeFormulas(newMap);
     });
-    setTimeout(() => evaluateAllFormulas(), 0);
-  }, [cols, evaluateAllFormulas]);
+  }, [cols, recomputeFormulas]);
 
-  // Удаление столбца по индексу
   const deleteColumn = useCallback((colIndex: number) => {
     if (colIndex < 0 || colIndex >= cols) return;
     setCols(prev => prev - 1);
@@ -139,10 +148,9 @@ export const useSpreadsheetData = (initialRows: number = DEFAULT_ROWS, initialCo
         const newRef = indexToCell(pos.row, newCol);
         newMap.set(newRef, cell);
       }
-      return newMap;
+      return recomputeFormulas(newMap);
     });
-    setTimeout(() => evaluateAllFormulas(), 0);
-  }, [cols, evaluateAllFormulas]);
+  }, [cols, recomputeFormulas]);
 
   return {
     cells,

@@ -30,14 +30,12 @@ export const Spreadsheet: React.FC = () => {
 
   const [formulaValue, setFormulaValue] = useState('');
 
-  // Обновление формульной строки при смене выбранной ячейки
   useEffect(() => {
     if (selectedCell && !editingCell) {
       setFormulaValue(getCellRaw(selectedCell));
     }
   }, [selectedCell, getCellRaw, editingCell]);
 
-  // При активном редактировании формульная строка отображает текущее значение
   useEffect(() => {
     if (editingCell && selectedCell) {
       setFormulaValue(getCellRaw(selectedCell));
@@ -92,39 +90,69 @@ export const Spreadsheet: React.FC = () => {
     openContextMenu(e, type, index, row !== undefined && col !== undefined ? { row, col } : undefined);
   }, [openContextMenu]);
 
-  const handleAddRow = useCallback(() => {
+  const handleAddRowAbove = useCallback(() => {
+    let targetRow = -1;
     if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
-      insertRow(contextMenu.index);
+      targetRow = contextMenu.index;
     } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
-      insertRow(contextMenu.cellPos.row);
+      targetRow = contextMenu.cellPos.row;
     }
+    if (targetRow !== -1) insertRow(targetRow);
     closeContextMenu();
   }, [contextMenu, insertRow, closeContextMenu]);
 
-  const handleDeleteRow = useCallback(() => {
+  const handleAddRowBelow = useCallback(() => {
+    let targetRow = -1;
     if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
-      deleteRow(contextMenu.index);
+      targetRow = contextMenu.index + 1;
     } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
-      deleteRow(contextMenu.cellPos.row);
+      targetRow = contextMenu.cellPos.row + 1;
     }
+    if (targetRow !== -1 && targetRow <= rows) insertRow(targetRow);
+    closeContextMenu();
+  }, [contextMenu, insertRow, closeContextMenu, rows]);
+
+  const handleDeleteRow = useCallback(() => {
+    let targetRow = -1;
+    if (contextMenu.type === 'rowHeader' && contextMenu.index !== undefined) {
+      targetRow = contextMenu.index;
+    } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
+      targetRow = contextMenu.cellPos.row;
+    }
+    if (targetRow !== -1) deleteRow(targetRow);
     closeContextMenu();
   }, [contextMenu, deleteRow, closeContextMenu]);
 
-  const handleAddColumn = useCallback(() => {
+  const handleAddColumnLeft = useCallback(() => {
+    let targetCol = -1;
     if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
-      insertColumn(contextMenu.index);
+      targetCol = contextMenu.index;
     } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
-      insertColumn(contextMenu.cellPos.col);
+      targetCol = contextMenu.cellPos.col;
     }
+    if (targetCol !== -1) insertColumn(targetCol);
     closeContextMenu();
   }, [contextMenu, insertColumn, closeContextMenu]);
 
-  const handleDeleteColumn = useCallback(() => {
+  const handleAddColumnRight = useCallback(() => {
+    let targetCol = -1;
     if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
-      deleteColumn(contextMenu.index);
+      targetCol = contextMenu.index + 1;
     } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
-      deleteColumn(contextMenu.cellPos.col);
+      targetCol = contextMenu.cellPos.col + 1;
     }
+    if (targetCol !== -1 && targetCol <= cols) insertColumn(targetCol);
+    closeContextMenu();
+  }, [contextMenu, insertColumn, closeContextMenu, cols]);
+
+  const handleDeleteColumn = useCallback(() => {
+    let targetCol = -1;
+    if (contextMenu.type === 'colHeader' && contextMenu.index !== undefined) {
+      targetCol = contextMenu.index;
+    } else if (contextMenu.type === 'cell' && contextMenu.cellPos) {
+      targetCol = contextMenu.cellPos.col;
+    }
+    if (targetCol !== -1) deleteColumn(targetCol);
     closeContextMenu();
   }, [contextMenu, deleteColumn, closeContextMenu]);
 
@@ -157,9 +185,11 @@ export const Spreadsheet: React.FC = () => {
           x={contextMenu.x}
           y={contextMenu.y}
           type={contextMenu.type}
-          onAddRow={handleAddRow}
+          onAddRowAbove={handleAddRowAbove}
+          onAddRowBelow={handleAddRowBelow}
           onDeleteRow={handleDeleteRow}
-          onAddColumn={handleAddColumn}
+          onAddColumnLeft={handleAddColumnLeft}
+          onAddColumnRight={handleAddColumnRight}
           onDeleteColumn={handleDeleteColumn}
           onClose={closeContextMenu}
         />
