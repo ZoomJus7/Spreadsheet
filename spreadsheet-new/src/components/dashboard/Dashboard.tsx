@@ -94,7 +94,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectDocument }) => {
         <h1>Мои документы</h1>
         <div>
           <button onClick={() => dispatch(openCreateModal())}>+ Новый документ</button>
-          <button onClick={() => dispatch(fetchDocuments())}>Обновить</button>
         </div>
       </div>
       <div className="documents-grid">
