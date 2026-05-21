@@ -35,7 +35,6 @@ export const useKeyboardShortcuts = ({
       const isCtrl = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
       
-      // Предотвращаем все комбинации
       if (isCtrl || ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'escape', 'tab', 'delete', 'backspace'].includes(key)) {
         e.preventDefault();
         e.stopPropagation();

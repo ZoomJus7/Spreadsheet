@@ -18,7 +18,6 @@ export const useUnsavedChanges = (hasUnsavedChanges: boolean) => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  // Возвращаем функцию для проверки и функцию для принудительного выхода
   const showConfirm = () => {
     if (!hasUnsavedChanges) return true;
     return window.confirm('У вас есть несохранённые изменения. Всё равно выйти?');

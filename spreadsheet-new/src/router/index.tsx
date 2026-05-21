@@ -53,5 +53,4 @@ export const router = createBrowserRouter([
   },
 ]);
 
-// Добавляем импорт Navigate
 import { Navigate } from 'react-router-dom';

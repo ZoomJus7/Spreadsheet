@@ -14,7 +14,6 @@ export const UserStats: React.FC = () => {
           const data = await getUserStats(user.id);
           setStats(data);
         } catch {
-          // ignore
         } finally {
           setLoading(false);
         }
