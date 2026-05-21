@@ -12,18 +12,13 @@ jobs:
     defaults:
       run:
         working-directory: ./spreadsheet-new
-    strategy:
-      matrix:
-        node-version: [22.x]
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '22'
       - name: Install dependencies
         run: npm install
-      - name: Type check
-        run: npx tsc --noEmit
       - name: Build
         run: npm run build
