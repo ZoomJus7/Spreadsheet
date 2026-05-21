@@ -1,7 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { fetchDocuments, createNewDocument, renameDocument, deleteDocumentThunk, duplicateDocumentThunk } from '@/store/slices/documentsSlice';
-import { openCreateModal, closeCreateModal, openRenameModal, closeRenameModal, openDeleteModal, closeDeleteModal } from '@/store/slices/uiSlice';
+import { 
+  openCreateModal, 
+  closeCreateModal, 
+  openRenameModal, 
+  closeRenameModal, 
+  openDeleteModal, 
+  closeDeleteModal 
+} from '@/store/slices/uiSlice';
 import { DocumentCard } from './DocumentCard';
 import { CreateDocumentModal } from './CreateDocumentModal';
 import { RenameDocumentModal } from './RenameDocumentModal';
@@ -51,33 +58,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ onSelectDocument }) => {
     }
   }, [documents]);
 
-  const handleCreate = async (name: string, rows: number, cols: number) => {
+  const handleCreate = useCallback(async (name: string, rows: number, cols: number) => {
     const result = await dispatch(createNewDocument({ name, rows, cols }));
     if (createNewDocument.fulfilled.match(result)) {
       onSelectDocument(result.payload.id);
     }
     dispatch(closeCreateModal());
-  };
+  }, [dispatch, onSelectDocument]);
 
-  const handleRename = async (newName: string) => {
+  const handleRename = useCallback(async (newName: string) => {
     const id = modalData.documentId;
     if (id) {
       await dispatch(renameDocument({ id, newName }));
     }
     dispatch(closeRenameModal());
-  };
+  }, [dispatch, modalData.documentId]);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     const id = modalData.documentId;
     if (id) {
       await dispatch(deleteDocumentThunk(id));
     }
     dispatch(closeDeleteModal());
-  };
+  }, [dispatch, modalData.documentId]);
 
-  const handleDuplicate = async (id: string) => {
+  const handleDuplicate = useCallback(async (id: string) => {
     await dispatch(duplicateDocumentThunk(id));
-  };
+  }, [dispatch]);
 
   if (loading) return <div className="loading">Загрузка...</div>;
 

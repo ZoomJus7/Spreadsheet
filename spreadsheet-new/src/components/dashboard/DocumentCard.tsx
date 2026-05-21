@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { DocumentMeta } from '@/types/document';
 import { RenameDocumentModal } from './RenameDocumentModal';
 import { ConfirmDeleteModal } from './ConfirmDeleteModal';
@@ -25,15 +25,23 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
   const formatDate = (timestamp: number) => new Date(timestamp).toLocaleDateString();
 
-  const handleRename = (newName: string) => {
+  const handleRename = useCallback((newName: string) => {
     onRename(document.id, newName);
     setIsRenameOpen(false);
-  };
+  }, [document.id, onRename]);
 
-  const handleDelete = () => {
+  const handleDeleteConfirm = useCallback(() => {
     onDelete(document.id, document.name);
     setIsDeleteOpen(false);
-  };
+  }, [document.id, document.name, onDelete]);
+
+  const handleOpen = useCallback(() => {
+    onOpen(document.id);
+  }, [document.id, onOpen]);
+
+  const handleDuplicate = useCallback(() => {
+    onDuplicate(document.id);
+  }, [document.id, onDuplicate]);
 
   return (
     <div className="document-card">
@@ -61,10 +69,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <div>Размер: {document.rows} × {document.cols}</div>
       </div>
       <div className="document-actions">
-        <button onClick={() => onOpen(document.id)}>Открыть</button>
+        <button onClick={handleOpen}>Открыть</button>
         <button onClick={() => setIsRenameOpen(true)}>Переименовать</button>
-        <button onClick={() => onDuplicate(document.id)}>Дублировать</button>
-        <button onClick={() => setIsDeleteOpen(true)}>Удалить</button>
+        <button onClick={handleDuplicate}>Дублировать</button>
+        <button onClick={() => onDelete(document.id, document.name)}>Удалить</button>
       </div>
 
       <RenameDocumentModal
@@ -76,7 +84,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       <ConfirmDeleteModal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
-        onConfirm={handleDelete}
+        onConfirm={handleDeleteConfirm}
         documentName={document.name}
       />
     </div>
