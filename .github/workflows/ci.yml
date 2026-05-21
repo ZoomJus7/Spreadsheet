@@ -9,49 +9,25 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: ./spreadsheet-new
-
     strategy:
       matrix:
         node-version: [22.x]
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Debug - list files
-        run: ls -la
-
+      - uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
-          cache-dependency-path: ./spreadsheet-app/package-lock.json
-
-      - name: Clean npm cache
-        run: npm cache clean --force
-
       - name: Install dependencies
-        run: npm ci
-
-      - name: Check formatting (Prettier)
+        run: npm install
+      - name: Check formatting
         run: npm run format -- --check
-
-      - name: Lint code (ESLint)
+      - name: Lint
         run: npm run lint
-
-      - name: Type checking (TypeScript)
+      - name: Type check
         run: npx tsc --noEmit
-
-      - name: Build project
+      - name: Build
         run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: ./spreadsheet-app/dist
