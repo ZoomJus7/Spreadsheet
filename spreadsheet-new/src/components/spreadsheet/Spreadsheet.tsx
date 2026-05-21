@@ -110,18 +110,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [documentId, cells, rows, cols]);
 
-  useEffect(() => {
-    const handleSelectAll = (e: CustomEvent) => {
-      const { rows: totalRows, cols: totalCols } = e.detail;
-      dispatch(selectCell({ pos: { row: 0, col: 0 }, withShift: false }));
-      setTimeout(() => {
-        dispatch(selectCell({ pos: { row: totalRows - 1, col: totalCols - 1 }, withShift: true }));
-      }, 0);
-    };
-    
-    window.addEventListener('spreadsheet:selectAll', handleSelectAll as EventListener);
-    return () => window.removeEventListener('spreadsheet:selectAll', handleSelectAll as EventListener);
-  }, [dispatch, rows, cols]);
 
   useEffect(() => {
     const handleFocus = () => setIsTableFocused(true);
@@ -339,7 +327,6 @@ export const Spreadsheet: React.FC<SpreadsheetProps> = ({
     onUndo: handleUndo,
     onRedo: handleRedo,
     isEditing: !!editingCell,
-    isActive: isTableFocused,
   });
 
   if (!isInitialized) {

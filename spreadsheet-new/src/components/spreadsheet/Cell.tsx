@@ -62,7 +62,6 @@ export const Cell: React.FC<CellProps> = memo(({
     onStartEdit(row, col);
   };
 
-  // Стили ячейки из форматирования
   const cellStyles: React.CSSProperties = {
     fontWeight: styles?.bold ? 'bold' : 'normal',
     fontStyle: styles?.italic ? 'italic' : 'normal',

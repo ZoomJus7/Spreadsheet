@@ -1,16 +1,7 @@
 import { useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { updateCell, updateRangeStyles } from '@/store/slices/spreadsheetSlice';
-import type { CellPosition, SelectionRange, CellData, CellStyles } from '@/types/spreadsheet';
-import { indexToCell, cellToIndex } from '@/utils/formulas/cellReference';
-
-interface ClipboardData {
-  cells: Map<string, { raw: string; styles?: CellStyles }>;
-  rows: number;
-  cols: number;
-  startRow: number;
-  startCol: number;
-}
+import { updateCell, updateRangeStyles, selectAllCells } from '@/store/slices/spreadsheetSlice';
+import type { CellStyles } from '@/types/spreadsheet';
 
 export const useClipboard = () => {
   const dispatch = useAppDispatch();
@@ -125,9 +116,8 @@ export const useClipboard = () => {
   }, [selectedCell, dispatch, rows, cols]);
   
   const selectAll = useCallback(() => {
-    const event = new CustomEvent('spreadsheet:selectAll', { detail: { rows, cols } });
-    window.dispatchEvent(event);
-  }, [rows, cols]);
+    dispatch(selectAllCells());
+  }, [dispatch]);
   
   const clearCell = useCallback(() => {
     if (selectedRange) {

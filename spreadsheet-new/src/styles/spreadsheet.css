@@ -318,3 +318,7 @@
   background: white;
   cursor: pointer;
 }
+
+.spreadsheet-cell.range {
+  background-color: rgba(33, 150, 243, 0.1) !important;
+}

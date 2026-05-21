@@ -179,6 +179,17 @@ const spreadsheetSlice = createSlice({
       }
     },
 
+    selectAllCells: (state) => {
+      const start = { row: 0, col: 0 };
+      const end = { row: state.rows - 1, col: state.cols - 1 };
+      state.selectedCell = start;
+      state.anchorCell = start;
+      state.selectedRange = {
+        start: { row: start.row, col: start.col },
+        end: { row: end.row, col: end.col },
+      };
+    },
+
     clearSelection: (state) => {
       state.selectedCell = null;
       state.selectedRange = null;
@@ -274,6 +285,7 @@ export const {
   updateRangeStyles,
   setCellsFromImport,
   selectCell,
+  selectAllCells,
   clearSelection,
   insertRow,
   deleteRow,
