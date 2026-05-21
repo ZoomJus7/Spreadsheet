@@ -23,11 +23,11 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Install dependencies
         run: npm install
-      - name: Check formatting
-        run: npm run format -- --check
+      - name: Format check
+        run: npm run format:check
       - name: Lint
         run: npm run lint
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run type-check
       - name: Build
         run: npm run build
